@@ -124,7 +124,10 @@ build_receiver_eras <- function(tower_metadata) {
     mutate(
       DongleType_1_clean = clean_dongle_type(DongleType_1),
       DongleType_2_clean = clean_dongle_type(DongleType_2),
-      System1End = lubridate::ymd(System1End)
+      System1End = as.Date(lubridate::parse_date_time(
+        System1End,
+        orders = c("ymd", "mdy", "dmy")
+      ))
       ) %>%
     {
       bind_rows(

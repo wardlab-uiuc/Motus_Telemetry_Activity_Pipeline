@@ -243,7 +243,10 @@ build_tower_eras <- function(Tower_metadata) {
     ) %>%
     bind_rows(
       Tower_metadata %>%
-        mutate(System1End = lubridate::mdy(System1End)) %>%
+        mutate(System1End = as.Date(lubridate::parse_date_time(
+          System1End,
+          orders = c("ymd", "mdy", "dmy")
+        ))) %>%
         filter(!is.na(System2)) %>%
         transmute(
           recvDeployName,
