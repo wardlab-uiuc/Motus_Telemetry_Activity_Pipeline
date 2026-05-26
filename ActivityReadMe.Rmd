@@ -181,7 +181,7 @@ The pipeline was specifically designed to address several common problems in Mot
 
 4. **Sparse detections can create false activity.** The pipeline applies timing filters, signal-to-noise filters, receiver-type thresholds, and dropout correction to reduce false positives.
 
-5. **Stationary transmitters can resemble very low activity.** This script include an optional diagnostic screen for deployments that become unusually stationary near the end of the detection record.
+5. **Stationary transmitters can resemble very low activity.** This workflow includes an optional diagnostic screen for deployments that become unusually stationary near the end of the detection record.
 
 # Recommended run order
 
@@ -200,6 +200,16 @@ Run the scripts in this order:
 <div class="good">
 <strong>Recommended for first-time users:</strong> Begin with the included example dataset by setting <code>use_example_data <- TRUE</code> in Step 1. After the workflow runs successfully, users can switch to <code>use_example_data <- FALSE</code> and apply the same scripts to their own Motus project. Use the single-tag Step 3 script first for testing, then use the looped Step 3 script for batch processing.
 </div>
+
+# Data permissions and usage
+
+The included example dataset is provided solely for demonstrating and testing the workflow contained in this repository.
+
+These example detections originate from the Illinois Wood Thrush Project and are intentionally limited in spatial and temporal scope. Users should not redistribute, republish, or reuse the example data outside the context of testing or learning the pipeline without permission from the original project investigators.
+
+Users applying this workflow to their own Motus projects are responsible for complying with all relevant Motus data-use agreements, project permissions, permitting requirements, and collaborator expectations.
+
+This repository distributes code and a small demonstration dataset only. Ownership and permissions associated with original Motus detection data remain with the respective project investigators and data contributors.
 
 # Key concepts and definitions
 
@@ -1882,11 +1892,15 @@ The pipeline estimates movement-based activity from signal variation. It does no
 
 For Wood Thrushes and similar diurnal songbirds, nighttime is assumed to represent relatively low movement. However, occasional nocturnal movement can occur. This inactive period varies by species.
 
-## Thresholds partially address distance bias, but do not eliminate it
+## Thresholds partially reduce distance bias, but do not eliminate it
 
-Signal strength is measured on a logarithmic scale, and signal changes can be affected by distance from the receiver. Using proportional signal change helps reduce this issue but does not completely solve it.
+Signal strength is recorded on a logarithmic dB scale, meaning identical biological movements can produce different absolute signal changes depending on distance from the receiver. To reduce this issue, the workflow estimates activity thresholds from proportional signal changes rather than raw dB differences and applies these proportional thresholds directly during activity classification.
 
-In addition, some environments may introduce unusually complex or noisy signal behavior. Urban areas can be especially challenging because buildings, electrical infrastructure, metal structures, and other sources of electromagnetic interference may alter signal propagation, increase background noise, or create signal reflections and irregular attenuation patterns. Dense vegetation, complex terrain, and highly heterogeneous landscapes may also affect signal stability and detection consistency.
+This proportional framework helps reduce the tendency for movements near receivers to appear artificially more active than equivalent movements farther away. However, activity estimates may still retain some residual distance dependence because received signal strength is also influenced by environmental conditions, vegetation structure, terrain, antenna orientation, atmospheric conditions, receiver-specific processing behavior, and local electromagnetic noise.
+
+As a result, the workflow should be interpreted as reducing rather than fully eliminating distance-related bias in telemetry-derived activity estimates.
+
+In addition, some environments may introduce unusually complex or noisy signal behavior. Urban areas can be especially challenging because buildings, electrical infrastructure, metal structures, and other sources of electromagnetic interference may alter signal propagation, increase background noise, or create signal reflections and irregular attenuation patterns. Dense vegetation, complex terrain, and highly heterogeneous landscapes may also affect signal stability, signal propagation, and detection consistency.
 
 ## Receiver hardware matters
 
@@ -1994,8 +2008,24 @@ This pipeline is intended to be transparent, adaptable, and conservative. Howeve
 
 If you find mistakes or have suggestions for improving the code, please contact Lauren Brunk or Mike Ward. Thank you!
 
-# Suggested citation
+# License
 
-If you use this pipeline, please cite:
+This repository is released under the GNU General Public License v3.0 (GPL-3.0).
+
+You are free to use, modify, and redistribute this code under the terms of the GPL-3.0 license. Modified versions that are distributed should also remain open-source under the same license. See the `LICENSE` file for full license terms.
+
+# Citation and attribution
+
+If you use or adapt this pipeline, please cite the thesis and repository.
 
 Brunk L (2026) *Implementing a telemetry-based method to quantify activity across the full annual cycle of the Wood Thrush*. MS thesis, University of Illinois Urbana–Champaign
+
+<div class="callout">
+<strong>Relationship to thesis implementation:</strong> This repository reflects the current implementation of the telemetry activity framework and includes updates made after the original thesis analyses were completed.
+<br><br>
+
+Most notably, the current repository applies proportional signal-change thresholds directly during activity classification. In the original thesis implementation, thresholds were estimated from proportional signal changes but then converted back to dB-scale thresholds during final classification.
+<br><br>
+
+The updated implementation better preserves the proportional scaling framework throughout classification and further reduces distance-dependent effects on activity estimation.
+</div>

@@ -17,13 +17,13 @@
 #   (3) receiver switching,
 #
 # while guarding against false movement caused by:
-#   - missed pings,
+#   - missed detections,
 #   - poor signal quality,
 #   - short-term signal dropouts.
 #
 # DESIGN PRINCIPLES
 # ------------------------------------------------------------------------------
-# • Classification is ONLY evaluated on valid consecutive pings
+# • Classification is ONLY evaluated on valid consecutive detections
 # • Structural changes (port / receiver) require timing validity
 # • Dropouts are corrected conservatively after classification
 # • All derived columns are retained for diagnostics & plotting
@@ -54,7 +54,7 @@ classify_activity <- function(df,
     arrange(date_time_local)
   
   # ============================================================================
-  # PHASE 2 — STRONGEST ANTENNA RESOLUTION (PER PING)
+  # PHASE 2 — STRONGEST ANTENNA RESOLUTION (PER detection)
   # ============================================================================
   
   sig_matrix   <- as.matrix(df[sig_cols])
@@ -201,13 +201,13 @@ classify_activity <- function(df,
   # PHASE 10 — DROPOUT CORRECTION USING PROPORTIONAL THRESHOLDS
   # ============================================================================
   # Goal:
-  #   Reclassify obvious one-ping anomalies as inactive when the neighboring
+  #   Reclassify obvious one-detection anomalies as inactive when the neighboring
   #   detections are stable and from the same antenna/receiver context.
   #
   # Logic:
-  #   - look one ping backward and forward
+  #   - look one detection backward and forward
   #   - compare neighbors directly on the proportional scale
-  #   - if neighbors are similar enough, treat the middle ping as a dropout
+  #   - if neighbors are similar enough, treat the middle detection as a dropout
   #
   # This mirrors the spirit of your earlier conservative dropout correction,
   # but now uses proportional change rather than dB thresholds.
@@ -236,7 +236,7 @@ classify_activity <- function(df,
       
       dropout_fix =
         (
-          # current ping is missing/invalid OR differs from both neighbors in port
+          # current detection is missing/invalid OR differs from both neighbors in port
           !is.finite(Signal) |
             (
               !is.na(lag_port) & !is.na(lead_port) &
