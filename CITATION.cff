@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+title: "Telemetry Activity Pipeline"
+message: "If you use this repository, please cite the associated thesis and repository."
+type: software
+
+authors:
+  - family-names: "Brunk"
+    given-names: "Lauren"
+    email: "lbrunk2@illinois.edu"
+    affiliation: "University of Illinois Urbana-Champaign"
+
+  - family-names: "Ward"
+    given-names: "Mike"
+    email: "mpward@illinois.edu"
+    affiliation: "University of Illinois Urbana-Champaign"
+
+repository-code: "https://github.com/wardlab-uiuc/Motus_Telemetry_Activity_Pipeline"
+
+license: "GPL-3.0"
+
+keywords:
+  - Motus
+  - radiotelemetry
+  - telemetry
+  - animal activity
+  - Wood Thrush
+  - movement ecology
+  - biologging
+  - automated telemetry
+
+abstract: >
+  R-based workflow for estimating movement-based activity from
+  automated radiotelemetry detections using proportional signal
+  change, receiver-specific thresholds, and deployment-aware
+  activity classification.
+
+preferred-citation:
+  type: thesis
+  authors:
+    - family-names: "Brunk"
+      given-names: "Lauren"
+  title: "Implementing a telemetry-based method to quantify activity across the full annual cycle of the Wood Thrush"
+  institution: "University of Illinois Urbana-Champaign"
+  year: 2026
