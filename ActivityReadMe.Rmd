@@ -1069,11 +1069,11 @@ Within short time windows, the script keeps the strongest detection across recei
 The `info_fast()` function assigns detections to biologically meaningful diel timing categories based on local sunrise, sunset, nautical dawn, and nautical dusk times calculated from the deployment latitude, longitude, date, and local time zone. These timing categories are:
 
 ```text
-dawn     = nautical dawn → sunrise
-day      = sunrise → sunset
-dusk     = sunset → nautical dusk
-night_1  =  nautical dusk → midnight
-night_2  = midnight → nautical dawn
+dawn     = civil dawn → nautical dawn
+day      = nautical dawn → nautical dusk
+dusk     = nautical dusk → civil dusk
+night_1  =  civil dusk → midnight
+night_2  = midnight → civil dawn
 ```
 
 Nighttime detections (`night_1` and `night_2`) are used as the inactive baseline because Wood Thrushes are primarily diurnal and generally exhibit lower movement rates during nighttime roosting periods. These can be adapted for species with different inactive periods.
