@@ -1,0 +1,3 @@
+State,recvDeployName,Site,recvDeployID,Lat,Lon,County,NumberOfAntennas,Antenna_Numbers,DongleType_1,DongleType_2,Antenna,System1,System2,System1End,Dongle_notes,Notes
+IL,Allerton,Allerton,13498,40.0038,-88.6533,Piatt,4,1234,SigmaeEight,Funcube,Nighthawk,SigmaeEight,Sensorgnome,2024-06-07,,
+IL,Allerton South,Allerton,15496,39.9953,-88.6382,Piatt,6,123456,RTL-SDR,NA,Nighthawk,Sensorgnome,NA,NA,,
