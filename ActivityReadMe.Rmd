@@ -1882,6 +1882,31 @@ Likely causes:
 
 A skipped screen does not mean the deployment is clean; it means the script did not have enough information to evaluate the stationary-tag criteria.
 
+# Reproducible package environment (optional)
+
+This repository supports reproducible package management using `renv`.
+
+To restore the package environment used during development:
+
+```r
+install.packages("renv")
+renv::restore()
+```
+
+This will install package versions recorded in `renv.lock`.
+
+# Tested environment
+
+This workflow was developed and tested using:
+
+| Component | Version |
+|---|---|
+| R | 4.5.1 |
+| Operating system | Windows 11 |
+| motus | 6.1.2 |
+
+Package versions may change over time. Users applying this workflow to new systems or future package versions should inspect outputs carefully and review diagnostic plots before interpreting biological activity estimates.
+
 # Assumptions and limitations
 
 ## Activity is inferred, not directly observed
