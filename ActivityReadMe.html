@@ -5849,25 +5849,67 @@ script did not have enough information to evaluate the stationary-tag
 criteria.</p>
 </div>
 </div>
-<div id="assumptions-and-limitations" class="section level1" number="20">
-<h1><span class="header-section-number">20</span> Assumptions and
+<div id="reproducible-package-environment-optional" class="section level1" number="20">
+<h1><span class="header-section-number">20</span> Reproducible package
+environment (optional)</h1>
+<p>This repository supports reproducible package management using
+<code>renv</code>.</p>
+<p>To restore the package environment used during development:</p>
+<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;renv&quot;</span>)</span>
+<span id="cb59-2"><a href="#cb59-2" tabindex="-1"></a>renv<span class="sc">::</span><span class="fu">restore</span>()</span></code></pre></div>
+<p>This will install package versions recorded in
+<code>renv.lock</code>.</p>
+</div>
+<div id="tested-environment" class="section level1" number="21">
+<h1><span class="header-section-number">21</span> Tested
+environment</h1>
+<p>This workflow was developed and tested using:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>R</td>
+<td>4.5.1</td>
+</tr>
+<tr class="even">
+<td>Operating system</td>
+<td>Windows 11</td>
+</tr>
+<tr class="odd">
+<td>motus</td>
+<td>6.1.2</td>
+</tr>
+</tbody>
+</table>
+<p>Package versions may change over time. Users applying this workflow
+to new systems or future package versions should inspect outputs
+carefully and review diagnostic plots before interpreting biological
+activity estimates.</p>
+</div>
+<div id="assumptions-and-limitations" class="section level1" number="22">
+<h1><span class="header-section-number">22</span> Assumptions and
 limitations</h1>
-<div id="activity-is-inferred-not-directly-observed" class="section level2" number="20.1">
-<h2><span class="header-section-number">20.1</span> Activity is
+<div id="activity-is-inferred-not-directly-observed" class="section level2" number="22.1">
+<h2><span class="header-section-number">22.1</span> Activity is
 inferred, not directly observed</h2>
 <p>The pipeline estimates movement-based activity from signal variation.
 It does not identify specific behaviors such as foraging, singing,
 provisioning, preening, or predator avoidance.</p>
 </div>
-<div id="nighttime-is-used-as-an-inactive-baseline" class="section level2" number="20.2">
-<h2><span class="header-section-number">20.2</span> Nighttime is used as
+<div id="nighttime-is-used-as-an-inactive-baseline" class="section level2" number="22.2">
+<h2><span class="header-section-number">22.2</span> Nighttime is used as
 an inactive baseline</h2>
 <p>For Wood Thrushes and similar diurnal songbirds, nighttime is assumed
 to represent relatively low movement. However, occasional nocturnal
 movement can occur. This inactive period varies by species.</p>
 </div>
-<div id="thresholds-partially-reduce-distance-bias-but-do-not-eliminate-it" class="section level2" number="20.3">
-<h2><span class="header-section-number">20.3</span> Thresholds partially
+<div id="thresholds-partially-reduce-distance-bias-but-do-not-eliminate-it" class="section level2" number="22.3">
+<h2><span class="header-section-number">22.3</span> Thresholds partially
 reduce distance bias, but do not eliminate it</h2>
 <p>Signal strength is recorded on a logarithmic dB scale, meaning
 identical biological movements can produce different absolute signal
@@ -5894,24 +5936,24 @@ attenuation patterns. Dense vegetation, complex terrain, and highly
 heterogeneous landscapes may also affect signal stability, signal
 propagation, and detection consistency.</p>
 </div>
-<div id="receiver-hardware-matters" class="section level2" number="20.4">
-<h2><span class="header-section-number">20.4</span> Receiver hardware
+<div id="receiver-hardware-matters" class="section level2" number="22.4">
+<h2><span class="header-section-number">22.4</span> Receiver hardware
 matters</h2>
 <p>Different receivers and dongle types can produce different signal
 distributions. This pipeline groups thresholds by receiver type to
 improve comparability, but threshold transferability should still be
 checked with diagnostics.</p>
 </div>
-<div id="redeployments-must-be-documented-accurately" class="section level2" number="20.5">
-<h2><span class="header-section-number">20.5</span> Redeployments must
+<div id="redeployments-must-be-documented-accurately" class="section level2" number="22.5">
+<h2><span class="header-section-number">22.5</span> Redeployments must
 be documented accurately</h2>
 <p>The pipeline depends on accurate <code>Band</code>,
 <code>Date_tagged</code>, and <code>Date_end</code> values. Errors in
 deployment metadata can cause detections to be assigned to the wrong
 bird.</p>
 </div>
-<div id="stationary-tag-screening-is-diagnostic-only" class="section level2" number="20.6">
-<h2><span class="header-section-number">20.6</span> Stationary-tag
+<div id="stationary-tag-screening-is-diagnostic-only" class="section level2" number="22.6">
+<h2><span class="header-section-number">22.6</span> Stationary-tag
 screening is diagnostic only</h2>
 <p>The stationary-tag screen identifies deployments that may require
 manual review. A flagged deployment may represent mortality, a dropped
@@ -5920,8 +5962,8 @@ receiver-specific artifacts. It should not be treated as confirmed
 mortality or tag loss without additional evidence.</p>
 </div>
 </div>
-<div id="adapting-the-pipeline-to-another-project" class="section level1" number="21">
-<h1><span class="header-section-number">21</span> Adapting the pipeline
+<div id="adapting-the-pipeline-to-another-project" class="section level1" number="23">
+<h1><span class="header-section-number">23</span> Adapting the pipeline
 to another project</h1>
 <p>To adapt this workflow, update the following:</p>
 <ol style="list-style-type: decimal">
@@ -5939,53 +5981,53 @@ to another project</h1>
 requires different assumptions</li>
 </ol>
 </div>
-<div id="minimal-run-example" class="section level1" number="22">
-<h1><span class="header-section-number">22</span> Minimal run
+<div id="minimal-run-example" class="section level1" number="24">
+<h1><span class="header-section-number">24</span> Minimal run
 example</h1>
-<div id="step-1" class="section level2" number="22.1">
-<h2><span class="header-section-number">22.1</span> Step 1</h2>
-<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
-<span id="cb59-2"><a href="#cb59-2" tabindex="-1"></a></span>
-<span id="cb59-3"><a href="#cb59-3" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<div id="step-1" class="section level2" number="24.1">
+<h2><span class="header-section-number">24.1</span> Step 1</h2>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb60-2"><a href="#cb60-2" tabindex="-1"></a></span>
+<span id="cb60-3"><a href="#cb60-3" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
 <p>For a full Motus project:</p>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
-<span id="cb60-2"><a href="#cb60-2" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span>
-<span id="cb60-3"><a href="#cb60-3" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
-<span id="cb60-4"><a href="#cb60-4" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
-<span id="cb60-5"><a href="#cb60-5" tabindex="-1"></a></span>
-<span id="cb60-6"><a href="#cb60-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
-</div>
-<div id="step-2" class="section level2" number="22.2">
-<h2><span class="header-section-number">22.2</span> Step 2</h2>
-<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
-<span id="cb61-2"><a href="#cb61-2" tabindex="-1"></a></span>
-<span id="cb61-3"><a href="#cb61-3" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
-<span id="cb61-4"><a href="#cb61-4" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span>
+<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb61-2"><a href="#cb61-2" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span>
+<span id="cb61-3"><a href="#cb61-3" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb61-4"><a href="#cb61-4" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
 <span id="cb61-5"><a href="#cb61-5" tabindex="-1"></a></span>
-<span id="cb61-6"><a href="#cb61-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step2_Activity_Threshold_Calculation.R&quot;</span>)</span></code></pre></div>
+<span id="cb61-6"><a href="#cb61-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
 </div>
-<div id="step-3a-one-tag-dataset" class="section level2" number="22.3">
-<h2><span class="header-section-number">22.3</span> Step 3A: one tag
-dataset</h2>
-<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a>data_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb62-2"><a href="#cb62-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>,</span>
-<span id="cb62-3"><a href="#cb62-3" tabindex="-1"></a>  <span class="st">&quot;YOUR_TAG_FOLDER_NAME&quot;</span></span>
-<span id="cb62-4"><a href="#cb62-4" tabindex="-1"></a>)</span>
+<div id="step-2" class="section level2" number="24.2">
+<h2><span class="header-section-number">24.2</span> Step 2</h2>
+<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
+<span id="cb62-2"><a href="#cb62-2" tabindex="-1"></a></span>
+<span id="cb62-3"><a href="#cb62-3" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
+<span id="cb62-4"><a href="#cb62-4" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span>
 <span id="cb62-5"><a href="#cb62-5" tabindex="-1"></a></span>
-<span id="cb62-6"><a href="#cb62-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification.R&quot;</span>)</span></code></pre></div>
+<span id="cb62-6"><a href="#cb62-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step2_Activity_Threshold_Calculation.R&quot;</span>)</span></code></pre></div>
 </div>
-<div id="step-3b-all-tag-datasets" class="section level2" number="22.4">
-<h2><span class="header-section-number">22.4</span> Step 3B: all tag
+<div id="step-3a-one-tag-dataset" class="section level2" number="24.3">
+<h2><span class="header-section-number">24.3</span> Step 3A: one tag
+dataset</h2>
+<div class="sourceCode" id="cb63"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" tabindex="-1"></a>data_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb63-2"><a href="#cb63-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>,</span>
+<span id="cb63-3"><a href="#cb63-3" tabindex="-1"></a>  <span class="st">&quot;YOUR_TAG_FOLDER_NAME&quot;</span></span>
+<span id="cb63-4"><a href="#cb63-4" tabindex="-1"></a>)</span>
+<span id="cb63-5"><a href="#cb63-5" tabindex="-1"></a></span>
+<span id="cb63-6"><a href="#cb63-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification.R&quot;</span>)</span></code></pre></div>
+</div>
+<div id="step-3b-all-tag-datasets" class="section level2" number="24.4">
+<h2><span class="header-section-number">24.4</span> Step 3B: all tag
 datasets</h2>
-<div class="sourceCode" id="cb63"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb63-2"><a href="#cb63-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb63-3"><a href="#cb63-3" tabindex="-1"></a>)</span>
-<span id="cb63-4"><a href="#cb63-4" tabindex="-1"></a></span>
-<span id="cb63-5"><a href="#cb63-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification_Looped.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb64"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb64-2"><a href="#cb64-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb64-3"><a href="#cb64-3" tabindex="-1"></a>)</span>
+<span id="cb64-4"><a href="#cb64-4" tabindex="-1"></a></span>
+<span id="cb64-5"><a href="#cb64-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification_Looped.R&quot;</span>)</span></code></pre></div>
 </div>
 </div>
-<div id="glossary" class="section level1" number="23">
-<h1><span class="header-section-number">23</span> Glossary</h1>
+<div id="glossary" class="section level1" number="25">
+<h1><span class="header-section-number">25</span> Glossary</h1>
 <table>
 <colgroup>
 <col width="16%" />
@@ -6052,8 +6094,8 @@ transmitters, or prolonged inactivity</td>
 </tbody>
 </table>
 </div>
-<div id="final-notes" class="section level1" number="24">
-<h1><span class="header-section-number">24</span> Final notes</h1>
+<div id="final-notes" class="section level1" number="26">
+<h1><span class="header-section-number">26</span> Final notes</h1>
 <p>This pipeline was developed for thesis research on Wood Thrush
 activity using automated radiotelemetry. The included example dataset is
 provided so users can test the workflow on a small, real Motus-style
@@ -6065,8 +6107,8 @@ estimates biologically.</p>
 <p>If you find mistakes or have suggestions for improving the code,
 please contact Lauren Brunk or Mike Ward. Thank you!</p>
 </div>
-<div id="license" class="section level1" number="25">
-<h1><span class="header-section-number">25</span> License</h1>
+<div id="license" class="section level1" number="27">
+<h1><span class="header-section-number">27</span> License</h1>
 <p>This repository is released under the GNU General Public License v3.0
 (GPL-3.0).</p>
 <p>You are free to use, modify, and redistribute this code under the
@@ -6074,8 +6116,8 @@ terms of the GPL-3.0 license. Modified versions that are distributed
 should also remain open-source under the same license. See the
 <code>LICENSE</code> file for full license terms.</p>
 </div>
-<div id="citation-and-attribution" class="section level1" number="26">
-<h1><span class="header-section-number">26</span> Citation and
+<div id="citation-and-attribution" class="section level1" number="28">
+<h1><span class="header-section-number">28</span> Citation and
 attribution</h1>
 <p>If you use or adapt this pipeline, please cite the thesis and
 repository.</p>

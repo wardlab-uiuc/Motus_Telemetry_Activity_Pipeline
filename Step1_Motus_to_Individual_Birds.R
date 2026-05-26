@@ -106,6 +106,43 @@ if (use_example_data) {
 dir.create(motus_database_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(filtered_indiv_dir, recursive = TRUE, showWarnings = FALSE)
 
+# ---------------------------------------------------------------------------
+# MOTUS LOGIN / DOWNLOAD CHECK
+# ---------------------------------------------------------------------------
+
+if (!use_example_data) {
+  
+  message(
+    "\n🔐 Motus login required.\n",
+    "If prompted, enter your Motus username/email and password directly in the R console.\n"
+  )
+  
+  # Simple connection/download-location test before full download.
+  tryCatch({
+    
+    tagme(
+      projRecv = projRecv_id,
+      dir = motus_database_dir,
+      new = FALSE
+    )
+    
+  }, error = function(e) {
+    
+    stop(
+      "\n❌ Motus download check failed.\n\n",
+      "Common causes:\n",
+      "1. Incorrect Motus login credentials\n",
+      "2. Interrupted login prompt\n",
+      "3. No permission to access this Motus project\n",
+      "4. The download folder cannot be written to\n",
+      "5. Network/VPN/firewall issues\n\n",
+      "Original error:\n",
+      conditionMessage(e)
+    )
+    
+  })
+}
+
 # ==============================================================================
 # 3) Load or download Motus data
 # ==============================================================================

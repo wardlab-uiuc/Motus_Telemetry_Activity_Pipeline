@@ -1843,6 +1843,49 @@ Before interpreting activity results, check the following:
 
 # Common errors and troubleshooting
 
+## Motus login and download troubleshooting
+
+When downloading Motus data for the first time, the R console may prompt for your Motus username/email and password.
+
+Enter credentials directly into the R console when prompted.
+
+If the login prompt becomes interrupted or unresponsive:
+
+1. Press `Esc`
+2. Restart the R session
+3. Reload the `motus` package:
+   
+```r
+library(motus)
+```
+
+4. Rerun Step 1
+
+If downloading fails with:
+
+```r
+Error: session variable 'userLogin' is undefined
+```
+
+the interactive login prompt was likely interrupted before credentials were entered completely. Restart the R session and rerun the script.
+
+If downloading fails with:
+
+```r
+Error: Could not connect to database:
+unable to open database file
+```
+
+the download directory may not be writable. This can sometimes occur with OneDrive folders, network drives, synced folders, or directories with restricted permissions.
+
+Try using a simple local folder such as:
+
+```r
+motus_database_dir <- "C:/MotusDownloads/Raw_Tower"
+```
+
+before rerunning the script.
+
 ## Error: no matching bird metadata found
 
 Likely causes:
