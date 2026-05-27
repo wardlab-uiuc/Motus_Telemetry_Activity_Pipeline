@@ -40,13 +40,16 @@ TIMING_LEVELS <- c(
 # =============================================================================
 
 theme_woth <- function() {
-  theme_classic(base_size = 14) +
+  theme_bw(base_size = 13) +
     theme(
-      plot.title    = element_text(face = "bold", hjust = 0.5),
-      plot.subtitle = element_text(hjust = 0.5),
-      plot.caption  = element_text(size = 10, hjust = 0),
-      axis.text.x   = element_text(angle = 45, hjust = 1),
-      legend.position = "top"
+      plot.title = element_text(face = "bold", hjust = 0, size = 15),
+      plot.subtitle = element_text(hjust = 0, size = 11),
+      plot.caption = element_text(size = 9, hjust = 0),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "top",
+      panel.grid.minor = element_blank(),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      strip.text = element_text(face = "bold")
     )
 }
 
@@ -276,15 +279,15 @@ plot_hourly_activity <- function(
       limits = c(0, 0.6)
     ) +
     labs(
-      title = sprintf("Hourly Activity — Port %s", dominant_port),
+      title = "Hourly activity pattern",
       subtitle = subtitle,
       caption = sprintf(
-        "Proportional-change thresholds: %.3f–%.3f",
+        "Bars show the proportion of retained detections classified as active. Error bars show approximate 95%% confidence intervals. Thresholds: %.3f–%.3f proportional signal change.",
         lower_ratio, upper_ratio
       ),
-      x = "Hour (Local Time)",
-      y = "Mean Activity (±95% CI)",
-      fill = "Time of Day"
+      x = "Hour of day, local time",
+      y = "Detections classified as active",
+      fill = "Diel period"
     ) +
     theme_woth()
 }
@@ -306,17 +309,16 @@ plot_daily_detected_vs_expected <- function(
     geom_col(aes(y = observed), fill = "peru") +
     scale_x_date(date_breaks = "1 month", date_labels = "%b") +
     labs(
-      title = sprintf("Detections Per Day — Port %s", dominant_port),
-      subtitle = NULL,
+      title = "Daily detection coverage",
+      subtitle = subtitle,
       caption = paste(
-        subtitle,
-        "Grey = expected detections (continuous presence).",
-        "Brown = observed detections.",
-        sprintf("Expected = %s / duty cycle.", SECONDS_PER_DAY),
+        "Grey bars show expected detections if the tag was continuously detected.",
+        "Colored bars show observed detections.",
+        sprintf("Expected detections are calculated as %s seconds per day / duty cycle.", SECONDS_PER_DAY),
         sep = "\n"
       ),
       x = "Date",
-      y = "Detections"
+      y = "Number of detections"
     ) +
     theme_woth()
 }
@@ -362,15 +364,12 @@ plot_fraction_expected_tod <- function(
       date_labels = "%b"
     ) +
     labs(
-      title = sprintf(
-        "Detections vs Expected by Time-of-Day — Port %s",
-        dominant_port
-      ),
-      subtitle = "Normalized for changing daylight duration",
+      title = "Detection coverage by diel period",
+      subtitle = "Observed detections divided by the number expected for each diel period",
       caption = subtitle,
-      x = "Month",
-      y = "Fraction of Expected",
-      fill = "Time of Day"
+      x = "Date",
+      y = "Fraction of expected detections",
+      fill = "Diel period"
     ) +
     theme_woth()
 }
@@ -408,10 +407,10 @@ plot_duty_cycle <- function(
   ) +
     geom_bar(fill = "forestgreen", color = "black") +
     labs(
-      title = sprintf("Duty-Cycle Intervals — Port %s", dominant_port),
+      title = "Detection intervals relative to expected duty cycle",
       subtitle = subtitle,
-      x = sprintf("Snapped Interval (sec; duty cycle = %s)", duty_cycle),
-      y = "Count"
+      x = sprintf("Time between detections, seconds; expected interval = %s s", duty_cycle),
+      y = "Number of detection intervals"
     ) +
     theme_woth()
 }
@@ -447,9 +446,13 @@ plot_signal_difference <- function(
       )
     ) +
     labs(
-      title = sprintf("Signal-Difference Density — Port %s", dominant_port),
+      title = "Signal-change distribution by diel period",
       subtitle = subtitle,
-      x = "Signal Difference (dB)",
+      caption = sprintf(
+        "Dashed lines show inactive threshold bounds: %.2f to %.2f dB. Values outside these bounds are classified as active.",
+        lower_db, upper_db
+      ),
+      x = "Signal change between valid consecutive detections, dB",
       y = "Density"
     ) +
     theme_woth()
@@ -483,18 +486,14 @@ plot_dropouts <- function(
     geom_col(aes(y = total_detections), fill = "grey80") +
     geom_col(aes(y = dropouts), fill = "steelblue") +
     labs(
-      title = sprintf(
-        "Dropouts Relative to Total Detections — Port %s",
-        dominant_port
-      ),
-      subtitle = NULL,
-      caption = paste(
-        subtitle,
-        sprintf("Overall dropout ratio: %.2f%%", drop_ratio * 100),
-        sep = "\n"
+      title = "Corrected single-detection receiver or antenna switches",
+      subtitle = subtitle,
+      caption = sprintf(
+        "Blue bars show detections corrected by the dropout filter. Grey bars show total detections. Overall corrected proportion: %.2f%%.",
+        drop_ratio * 100
       ),
       x = "Date",
-      y = "Count"
+      y = "Number of detections"
     ) +
     theme_woth()
 }
