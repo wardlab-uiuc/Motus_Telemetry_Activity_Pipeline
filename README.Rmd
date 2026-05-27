@@ -2,7 +2,13 @@
 title: "Telemetry Activity Pipeline"
 author: "Lauren Brunk"
 date: "Last updated: `r format(Sys.Date(), '%B %d, %Y')`"
+
 output:
+
+  github_document:
+    toc: true
+    toc_depth: 3
+
   html_document:
     toc: true
     toc_float: true
@@ -12,7 +18,6 @@ output:
     highlight: tango
     df_print: paged
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
