@@ -23,26 +23,85 @@
 rm(list = ls())
 
 # ==============================================================================
-# 1) Setup
+# 1) Packages and environment
+# ==============================================================================
+#
+# This section:
+#   1. Activates the project-specific renv environment if available
+#   2. Checks whether required packages are installed
+#   3. Installs any missing packages
+#   4. Loads all required libraries
+#   5. Resolves common namespace conflicts
+#
+# Activating renv helps reproduce the package environment used during
+# development. If renv is unavailable, the script will continue using the
+# default R library.
 # ==============================================================================
 
-# Load all packages needed for data wrangling, date/time handling, plotting,
-# and applying custom functions. The install step is included so the script
-# can be run on a new computer, but for long-term reproducibility it is often
-# better to manage packages separately.
+# ------------------------------------------------------------------------------
+# Activate renv environment if available
+# ------------------------------------------------------------------------------
+
+if (file.exists(here::here("renv", "activate.R"))) {
+  source(here::here("renv", "activate.R"))
+}
+
+# ------------------------------------------------------------------------------
+# Required packages
+# ------------------------------------------------------------------------------
 
 required_packages <- c(
-  "ggplot2", "dplyr", "lubridate", "suncalc", "conflicted", "tidyr", "purrr",
-  "readr", "stringr", "lutz", "here", "patchwork", "zoo", "scales", "vroom",
-  "tibble", "magrittr"
+  "ggplot2",
+  "dplyr",
+  "lubridate",
+  "suncalc",
+  "conflicted",
+  "tidyr",
+  "purrr",
+  "readr",
+  "stringr",
+  "lutz",
+  "here",
+  "patchwork",
+  "zoo",
+  "scales",
+  "vroom",
+  "tibble",
+  "magrittr"
 )
 
-installed <- required_packages %in% rownames(installed.packages())
-if (any(!installed)) install.packages(required_packages[!installed])
-invisible(lapply(required_packages, library, character.only = TRUE))
+# ------------------------------------------------------------------------------
+# Install missing packages
+# ------------------------------------------------------------------------------
 
-# Explicitly resolve common function conflicts so that filter(), lag(), and
-# select() always come from dplyr.
+installed_packages <- rownames(installed.packages())
+
+missing_packages <- required_packages[
+  !required_packages %in% installed_packages
+]
+
+if (length(missing_packages) > 0) {
+  
+  message(
+    "📦 Installing missing packages: ",
+    paste(missing_packages, collapse = ", ")
+  )
+  
+  install.packages(missing_packages)
+}
+
+# ------------------------------------------------------------------------------
+# Load packages
+# ------------------------------------------------------------------------------
+
+invisible(
+  lapply(required_packages, library, character.only = TRUE)
+)
+
+# ------------------------------------------------------------------------------
+# Resolve common namespace conflicts
+# ------------------------------------------------------------------------------
+
 conflicted::conflict_prefer("filter", "dplyr")
 conflicted::conflict_prefer("lag", "dplyr")
 conflicted::conflict_prefer("select", "dplyr")

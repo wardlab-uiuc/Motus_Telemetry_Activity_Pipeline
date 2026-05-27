@@ -34,6 +34,31 @@
 # ==============================================================================
 # 1) Packages and environment
 # ==============================================================================
+#
+# This section:
+#   1. Activates the project-specific renv environment if available
+#   2. Loads all required libraries
+#   3. Resolves common namespace conflicts
+#
+# Activating renv helps reproduce the package environment used during
+# development. If renv is unavailable, the script will continue using the
+# default R library.
+#
+# Unlike earlier setup steps, this script assumes the required packages have
+# already been installed.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Activate renv environment if available
+# ------------------------------------------------------------------------------
+
+if (file.exists(here::here("renv", "activate.R"))) {
+  source(here::here("renv", "activate.R"))
+}
+
+# ------------------------------------------------------------------------------
+# Load required packages
+# ------------------------------------------------------------------------------
 
 library(dplyr)
 library(tidyr)
@@ -49,6 +74,10 @@ library(patchwork)
 library(scales)
 library(suncalc)
 library(conflicted)
+
+# ------------------------------------------------------------------------------
+# Resolve common namespace conflicts
+# ------------------------------------------------------------------------------
 
 conflicts_prefer(dplyr::filter)
 conflicts_prefer(dplyr::lag)
