@@ -120,6 +120,24 @@ Before running any scripts, open the repository using the included RStudio proje
 Telemetry_Activity_Pipeline.Rproj
 ```
 
+# Reproducible package environment
+
+This repository uses `renv` to help reproduce the package environment used during development.
+
+When Step 1 runs, it automatically attempts to:
+
+1. Activate the project `renv` environment
+2. Restore package versions recorded in `renv.lock`
+3. Install any still-missing packages
+
+For best reproducibility, open the repository using the included `.Rproj` file before running the workflow.
+
+If `renv` is not already installed on your computer, install it once using:
+
+```r
+install.packages("renv")
+```
+
 # Contact
 
 For questions about the pipeline, assumptions, or adapting the code to another project, contact:
@@ -1924,19 +1942,6 @@ Likely causes:
 4. Detections do not meet timing or S2N requirements.
 
 A skipped screen does not mean the deployment is clean; it means the script did not have enough information to evaluate the stationary-tag criteria.
-
-# Reproducible package environment (optional)
-
-This repository supports reproducible package management using `renv`.
-
-To restore the package environment used during development:
-
-```r
-install.packages("renv")
-renv::restore()
-```
-
-This will install package versions recorded in `renv.lock`.
 
 # Tested environment
 

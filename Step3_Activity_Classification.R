@@ -137,10 +137,13 @@ stationary_max_mean_abs_sigdif <- 0.50
 stationary_min_receiver_prop <- 0.80
 
 # Folder containing one MotusTagID × mfgID dataset.
-data_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered",
-  "84746_160_ExampleAllerton_051826_MotusFiltered"
+data_parent_dir <- here(
+  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
 )
+
+target_MotusTagID <- "84746"
+target_mfgID <- "160"
+target_state <- "ExampleAllerton"
 
 bird_metadata_path <- here(
   "Sample_Data", "Raw", "Metadata", "WOTH_IL_Metadata.csv"
@@ -185,6 +188,87 @@ parse_dataset_folder <- function(data_dir) {
     state = parts[3],
     date_code = parts[4]
   )
+}
+
+# ------------------------------------------------------------------------------
+# Helper: find_latest_dataset_folder()
+#
+# Finds the most recent MotusTagID × mfgID dataset folder within the filtered
+# data directory.
+#
+# This allows the workflow to automatically use the newest Motus download
+# without hard-coding the download date into the script.
+#
+# Expected folder format:
+#   <MotusTagID>_<mfgID>_<state>_<date_code>_MotusFiltered
+#
+# Example:
+#   84746_160_ExampleAllerton_052726_MotusFiltered
+#
+# The function:
+#   1. Searches the parent directory for matching folders
+#   2. Extracts the date code from each folder name
+#   3. Converts the date code to a real date
+#   4. Returns the most recent matching folder
+#
+# This prevents errors when Motus data are re-downloaded on different dates.
+# ------------------------------------------------------------------------------
+
+find_latest_dataset_folder <- function(
+    data_parent_dir,
+    target_MotusTagID,
+    target_mfgID,
+    target_state
+) {
+  
+  folder_pattern <- paste0(
+    "^",
+    target_MotusTagID, "_",
+    target_mfgID, "_",
+    target_state, "_",
+    "[0-9]{6}",
+    "_MotusFiltered$"
+  )
+  
+  matching_dirs <- list.dirs(
+    data_parent_dir,
+    recursive = FALSE,
+    full.names = TRUE
+  )
+  
+  matching_dirs <- matching_dirs[
+    str_detect(basename(matching_dirs), folder_pattern)
+  ]
+  
+  if (length(matching_dirs) == 0) {
+    stop(
+      "❌ No matching dataset folders found for: ",
+      target_MotusTagID, "_", target_mfgID, "_", target_state,
+      " in ", data_parent_dir
+    )
+  }
+  
+  folder_info <- tibble(
+    data_dir = matching_dirs,
+    folder_name = basename(matching_dirs)
+  ) %>%
+    mutate(
+      date_code = str_match(
+        folder_name,
+        paste0(
+          "^",
+          target_MotusTagID, "_",
+          target_mfgID, "_",
+          target_state, "_",
+          "([0-9]{6})",
+          "_MotusFiltered$"
+        )
+      )[, 2],
+      download_date = as.Date(date_code, format = "%m%d%y")
+    ) %>%
+    arrange(desc(download_date))
+  
+  folder_info$data_dir[1]
 }
 
 # ------------------------------------------------------------------------------
@@ -1135,6 +1219,15 @@ make_and_save_plots <- function(
 # ==============================================================================
 # 5) Parse input identifiers and load data
 # ==============================================================================
+
+data_dir <- find_latest_dataset_folder(
+  data_parent_dir = data_parent_dir,
+  target_MotusTagID = target_MotusTagID,
+  target_mfgID = target_mfgID,
+  target_state = target_state
+)
+
+message("Using latest matching dataset folder: ", data_dir)
 
 ids <- parse_dataset_folder(data_dir)
 

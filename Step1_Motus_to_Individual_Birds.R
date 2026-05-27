@@ -23,23 +23,91 @@
 ##   1. .RDS file for use in R
 ##   2. .csv file for viewing outside R
 ################################################################################
-
 rm(list = ls())
 
 # ==============================================================================
-# 1) Libraries
+# 0) Project package environment
 # ==============================================================================
 
-library(motus)
+# Activate project-specific renv library if available
+if (file.exists("renv/activate.R")) {
+  
+  source("renv/activate.R")
+  
+} else {
+  
+  warning(
+    "renv/activate.R not found.\n",
+    "Packages will be loaded from the default R library."
+  )
+}
 
-library(DBI)
-library(RSQLite)
+# ------------------------------------------------------------------------------
+# Restore package versions recorded in renv.lock
+# ------------------------------------------------------------------------------
 
-library(dplyr)
-library(readr)
-library(lubridate)
-library(stringr)
-library(here)
+if (requireNamespace("renv", quietly = TRUE)) {
+  
+  message("📦 Restoring project package environment with renv...")
+  
+  renv::restore(prompt = FALSE)
+  
+} else {
+  
+  warning(
+    "Package 'renv' is not installed.\n",
+    "Attempting to continue using the default R library."
+  )
+}
+
+# ------------------------------------------------------------------------------
+# Required packages
+# ------------------------------------------------------------------------------
+
+required_packages <- c(
+  "motus",
+  "DBI",
+  "RSQLite",
+  "dplyr",
+  "readr",
+  "lubridate",
+  "stringr",
+  "here"
+)
+
+# ------------------------------------------------------------------------------
+# Install any packages still missing
+# ------------------------------------------------------------------------------
+
+missing_packages <- required_packages[
+  !sapply(required_packages, requireNamespace, quietly = TRUE)
+]
+
+if (length(missing_packages) > 0) {
+  
+  message(
+    "📦 Installing missing packages: ",
+    paste(missing_packages, collapse = ", ")
+  )
+  
+  install.packages(
+    missing_packages,
+    repos = c(
+      "https://steffilazerte.r-universe.dev",
+      "https://cloud.r-project.org"
+    )
+  )
+}
+
+
+# ==============================================================================
+# 1) Load packages
+# ==============================================================================
+invisible(
+  lapply(required_packages, library, character.only = TRUE)
+)
+
+message("✅ Required packages successfully loaded.")
 
 # ==============================================================================
 # 2) User settings
