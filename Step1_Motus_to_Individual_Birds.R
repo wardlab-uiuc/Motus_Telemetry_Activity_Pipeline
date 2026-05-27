@@ -185,27 +185,13 @@ if (!use_example_data) {
     "If prompted, enter your Motus username/email and password directly in the R console.\n"
   )
   
-  # Expected Motus database path
   motus_file <- file.path(
     motus_database_dir,
     paste0("project-", projRecv_id, ".motus")
   )
   
-  # Does the database already exist?
   create_new_db <- !file.exists(motus_file)
   
-  if (create_new_db) {
-    
-    message("📦 No existing Motus database found.")
-    message("Creating new database: ", motus_file)
-    
-  } else {
-    
-    message("📂 Existing Motus database found.")
-    message("Using existing database: ", motus_file)
-  }
-  
-  # Attempt Motus connection/download
   tryCatch({
     
     tagme(
@@ -217,18 +203,19 @@ if (!use_example_data) {
   }, error = function(e) {
     
     stop(
-      "\n❌ Motus download check failed.\n\n",
-      "Common causes:\n",
+      "\n❌ Unable to access Motus database.\n\n",
+      "Possible causes:\n",
       "1. Incorrect Motus login credentials\n",
-      "2. Interrupted login prompt\n",
-      "3. No permission to access this Motus project\n",
-      "4. The download folder cannot be written to\n",
-      "5. Network/VPN/firewall issues\n\n",
+      "2. No access to this Motus project\n",
+      "3. Network/VPN/firewall issues\n",
+      "4. Cannot write to download directory\n\n",
       "Original error:\n",
       conditionMessage(e)
     )
     
   })
+  
+  message("✅ Motus database ready.")
 }
 
 # ==============================================================================
@@ -274,11 +261,7 @@ if (use_example_data) {
 } else {
   
   # ---------------------------------------------------------------------------
-  # OPTION B: Download Motus database
-  # ---------------------------------------------------------------------------
-  
-  # ---------------------------------------------------------------------------
-  # Download or update Motus database
+  # OPTION B: Load Motus database
   # ---------------------------------------------------------------------------
   
   motus_file <- file.path(
@@ -286,32 +269,9 @@ if (use_example_data) {
     paste0("project-", projRecv_id, ".motus")
   )
   
-  create_new_db <- !file.exists(motus_file)
-  
-  if (create_new_db) {
-    
-    message("📦 No existing Motus database found.")
-    message("Creating new database...")
-    
-  } else {
-    
-    message("📂 Existing Motus database found.")
-    message("Updating existing database...")
-  }
-  
-  tagme(
-    projRecv = projRecv_id,
-    dir = motus_database_dir,
-    new = create_new_db
-  )
-
   if (!file.exists(motus_file)) {
     stop("Motus database was not found at: ", motus_file)
   }
-  
-  # ---------------------------------------------------------------------------
-  # Flatten .motus database
-  # ---------------------------------------------------------------------------
   
   message("📦 Flattening alltags table...")
   
