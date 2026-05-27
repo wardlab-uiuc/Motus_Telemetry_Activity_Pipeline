@@ -4,6 +4,7 @@ Lauren Brunk
 Last updated: May 27, 2026
 
 - [Quick summary](#quick-summary)
+  - [Documentation formats](#documentation-formats)
 - [Opening the project in RStudio](#opening-the-project-in-rstudio)
 - [Reproducible package environment](#reproducible-package-environment)
 - [Contact](#contact)
@@ -229,6 +230,19 @@ automated radiotelemetry**, but the overall structure can be adapted to
 other Motus projects, species, receiver arrays, and tag deployments if
 the biological assumptions and input data are appropriate.
 
+## Documentation formats
+
+This repository includes both:
+
+| File | Purpose |
+|----|----|
+| `README.md` | GitHub-friendly version displayed on the repository homepage |
+| `README.html` | Formatted version with enhanced navigation and styling |
+
+Both files contain the same core documentation. The HTML version is
+generally easier to navigate for long-form reading, while the Markdown
+version is optimized for GitHub display.
+
 <div class="callout">
 
 <strong>In plain language:</strong> this pipeline loads or downloads
@@ -261,8 +275,8 @@ options for Step 3:
 
 | Step | Script | Main purpose | Main output |
 |----|----|----|----|
-| 1 | `Step1_Motus_to_Individual_Birds.R` | Load the included example dataset or download Motus data, apply the Motus filter, and save Motus-filtered files per `MotusTagID × mfgID` | Individual tag `.RDS` and `.csv` files |
-| 2 | `Step2_Activity_Threshold_Calculation.R` | Estimate movement thresholds from inactivity baseline signal variation | Threshold summary tables, threshold `.RDS` files, and diagnostic plots |
+| 1 | `Step1_Motus_to_Individual_Birds.R` | Load the included example dataset or download Motus data, apply the Motus filter, and save Motus-filtered files per `MotusTagID × mfgID` | Individual tag `.rds` and `.csv` files |
+| 2 | `Step2_Activity_Threshold_Calculation.R` | Estimate movement thresholds from inactivity baseline signal variation | Threshold summary tables, threshold `.rds` files, and diagnostic plots |
 | 3A | `Step3_Activity_Classification.R` | Apply receiver-type thresholds to classify activity for one tag dataset at a time | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
 | 3B | `Step3_LOOP_Activity_Classification.R` | Apply receiver-type thresholds to all tag datasets in the Step 1 output folder | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
 
@@ -314,7 +328,7 @@ the workflow and helping new users learn the pipeline structure.
 The included file is:
 
 ``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.RDS
+Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
 ```
 
 This dataset is a subset of detections from:
@@ -325,7 +339,7 @@ This dataset is a subset of detections from:
 | Motus project ID | `787`                             |
 | Receiver/tower   | `Allerton` and `Allerton South`   |
 | Date range       | May 25–June 2, 2025               |
-| File type        | `.RDS`                            |
+| File type        | `.rds`                            |
 | Filtering status | Not yet filtered by `motusFilter` |
 
 The example dataset is intentionally small so users can quickly test:
@@ -867,30 +881,38 @@ A fresh copy of the repository should initially look similar to:
 
 ``` text
 Telemetry_Activity_Pipeline/
-├── Sample_Data/
-│   ├── Raw/
-│   │   ├── Raw_Tower/
-│   │   │   └── Example_Allerton_WOTH_052525_060225.RDS
-│   │   └── Metadata/
-│   │       ├── WOTH_IL_Metadata.csv
-│   │       └── Tower_Metadata.csv
-│   │
-│   └── Example_Figures/
-│       ├── Example_Averaged_Hourly_Activity.png
-│       ├── Example_Signal_Difference.png
-│       ├── Example_Stationary_Tag_Screen.png
-│       └── ...
+├── CITATION.cff
+├── LICENSE
+├── README.Rmd
+├── README.md
+├── README.html
+├── renv.lock
+├── renv/
+│   ├── activate.R
+│   └── settings.json
 │
 ├── Helper_Functions/
 │   ├── Activity_Timing_Functions.R
 │   └── Diagnostic_Plots_Functions.R
 │
+├── Sample_Data/
+│   ├── Raw/
+│   │   ├── Raw_Tower/
+│   │   │   └── Example_Allerton_WOTH_052525_060225.rds
+│   │   └── Metadata/
+│   │       ├── Tower_Metadata.csv
+│   │       └── WOTH_IL_Metadata.csv
+│   │
+│   └── Example_Figures/
+│       ├── Proportional_Signal_Graphic.png
+│       ├── Nighttime_Threshold_Histogram.png
+│       ├── Example_Averaged_Hourly_Activity.png
+│       └── ...
+│
 ├── Step1_Motus_to_Individual_Birds.R
 ├── Step2_Activity_Threshold_Calculation.R
 ├── Step3_Activity_Classification.R
 ├── Step3_LOOP_Activity_Classification.R
-├── ActivityReadMe.Rmd
-│
 └── Telemetry_Activity_Pipeline.Rproj
 ```
 
@@ -906,7 +928,7 @@ Sample_Data/
 ├── Interim/
 │   └── Motus_Tower_Data_Filtered/
 │       ├── all_birds_thresholds_summaryExampleAllerton.csv
-│       ├── all_birds_threshold_resultsExampleAllerton.RDS
+│       ├── all_birds_threshold_resultsExampleAllerton.rds
 │       ├── threshold_hist_plots/
 │       ├── 93371_136_ExampleAllerton_051226_MotusFiltered/
 │       ├── 93378_143_ExampleAllerton_051226_MotusFiltered/
@@ -1001,7 +1023,7 @@ use_example_data <- TRUE
 This loads:
 
 ``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.RDS
+Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
 ```
 
 This file contains a small subset of individuals from the Illinois Wood
@@ -1220,7 +1242,7 @@ After loading data, both modes follow the same workflow:
 2.  Apply `motusFilter == 1` to retain detections that passed the
     standard Motus filtering process
 3.  Identify unique `MotusTagID × mfgID`
-4.  Save one `.RDS` and one `.csv` per tag dataset
+4.  Save one `.rds` and one `.csv` per tag dataset
 
 ## Main settings to edit
 
@@ -1229,7 +1251,7 @@ use_example_data <- TRUE
 
 example_rds <- here(
   "Sample_Data", "Raw", "Raw_Tower", 
-  "Example_Allerton_WOTH_052525_060225.RDS"
+  "Example_Allerton_WOTH_052525_060225.rds"
 )
 
 # OR
@@ -1248,7 +1270,7 @@ filtered_indiv_dir <- here(
 | Setting | Meaning |
 |----|----|
 | `use_example_data` | Controls whether the script loads the included example dataset or downloads Motus data |
-| `example_rds` | Path to the included example `.RDS` file |
+| `example_rds` | Path to the included example `.rds` file |
 | `projRecv_id` | Motus project ID used when downloading data. This can be found on the Motus website under <code>Manage → Manage Projects</code>. The numeric project ID appears alongside the project name. |
 | `state_label` | Short location label used in output filenames; can be adjusted to match the study region or project naming scheme |
 | `project_label` | Project label used when saving flattened `alltags` data |
@@ -1266,7 +1288,7 @@ use_example_data <- TRUE
 The script loads:
 
 ``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.RDS
+Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
 ```
 
 When example mode is used, the script automatically updates the output
@@ -1318,7 +1340,7 @@ For each tag dataset, Step 1 saves:
 
 | Output                         | File type | Description                    |
 |--------------------------------|-----------|--------------------------------|
-| Individual Motus-filtered file | `.RDS`    | Main file used downstream      |
+| Individual Motus-filtered file | `.rds`    | Main file used downstream      |
 | Individual Motus-filtered file | `.csv`    | Spreadsheet-compatible version |
 
 Output folders follow this naming pattern:
@@ -1579,7 +1601,7 @@ Example output name:
 all_birds_thresholds_summary<state_names>.csv
 ```
 
-The updated script also saves the full `all_results` list as an `.RDS`
+The updated script also saves the full `all_results` list as an `.rds`
 file for reproducibility.
 
 ## Step 2 outputs
@@ -1587,7 +1609,7 @@ file for reproducibility.
 | Output | Description |
 |----|----|
 | `summary_table` | One row per bird × receiver era containing threshold estimates and quality-control metrics |
-| `all_results` | `.RDS` file containing the full processed results list for each bird × receiver era |
+| `all_results` | `.rds` file containing the full processed results list for each bird × receiver era |
 | `threshold_hist_plots/` | Diagnostic histograms of signal differences with threshold lines, including both individual bird-era plots and combined plots grouped by receiver/tower type |
 
 # Step 3: Classify activity and summarize detections

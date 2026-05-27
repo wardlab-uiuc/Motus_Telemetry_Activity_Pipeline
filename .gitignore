@@ -1,5 +1,16 @@
-.Rproj.user/
+# R / RStudio
 .Rhistory
 .RData
 .Ruserdata
-.Rhistory
+.Rproj.user/
+
+# renv
+renv/library/
+renv/staging/
+
+# Generated workflow outputs
+Sample_Data/Interim/
+Sample_Data/Processed/
+
+# Optional local files
+*.motus
