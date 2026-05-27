@@ -212,7 +212,7 @@ Run the scripts in this order:
        ↓
 3A. Activity_Classification.R
        OR
-3B. Activity_Classification_Looped.R
+3B. Step3_LOOP_Activity_Classification.R
 ```
 
 <div class="good">
@@ -525,7 +525,7 @@ Depending on the stage of the workflow, activity may be inferred from:
 1. Proportional signal change outside inactivity threshold bounds
 2. Antenna/port switching
 3. Receiver switching
-4. Meet tolerance of the duty cycle
+4. Timing within the expected duty cycle tolerance
 5. Adequate S2N
 6. Dropout correction
 
@@ -653,7 +653,7 @@ required_packages <- c(
 )
 ```
 
-Some scripts install missing packages automatically, but it is usually better to install packages intentionally before running the full workflow.
+Step 1 automatically attempts to activate the project `renv` environment, restore packages from `renv.lock`, and install any still-missing packages. Steps 2 and 3 also activate `renv` if available, but assume the package environment has already been set up.
 
 # Required custom functions
 
@@ -847,7 +847,7 @@ Step1_Motus_to_Individual_Birds.R
 
 ## Purpose
 
-Step 1 downloads Motus project data, flattens the `.motus` database into a regular R project, applies the standard Motus filter, and svaes individual tag-level files. Essentially, this step prepares Motus detections for the rest of the workflow.
+Step 1 downloads Motus project data, flattens the `.motus` database into a regular R project, applies the standard Motus filter, and saves individual tag-level files. Essentially, this step prepares Motus detections for the rest of the workflow.
 
 It can run in two modes:
 
@@ -1183,7 +1183,7 @@ The updated script also saves the full `all_results` list as an `.RDS` file for 
 
 ```text
 Activity_Classification.R
-Activity_Classification_Looped.R
+Step3_LOOP_Activity_Classification.R
 ```
 
 ## Purpose
@@ -1197,7 +1197,7 @@ There are two versions of Step 3:
 | Version                            | Best used for                                   | Main input            |
 | ---------------------------------- | ----------------------------------------------- | --------------------- |
 | `Activity_Classification.R`        | Testing or processing one tag dataset at a time | One `data_dir`        |
-| `Activity_Classification_Looped.R` | Processing all tag datasets after testing       | One `data_parent_dir` |
+| `Step3_LOOP_Activity_Classification.R` | Processing all tag datasets after testing       | One `data_parent_dir` |
 
 ## Main settings to edit
 
@@ -1219,11 +1219,15 @@ stationary_min_receiver_prop <- 0.80
 For the single-tag version, replace the folder name with the folder name of the bird you want to run:
 
 ```r
-data_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered",
-  "93371_136_ExampleAllerton_051226_MotusFiltered"
+data_parent_dir <- here(
+  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
 )
+
+target_MotusTagID <- "84746"
+target_mfgID <- "160"
+target_state <- "ExampleAllerton"
 ```
+The single-tag Step 3 script searches `data_parent_dir` for folders matching the requested `target_MotusTagID`, `target_mfgID`, and `target_state`, then automatically selects the most recent `download_id`.
 
 For the looped version:
 
@@ -1310,6 +1314,7 @@ Important helper functions include:
 | Helper function                      | Purpose                                                                   |
 | ------------------------------------ | ------------------------------------------------------------------------- |
 | `parse_dataset_folder()`             | Extracts `MotusTagID`, `mfgID`, state, and date code from the folder name |
+| `find_latest_dataset_folder()` | Finds the newest matching Step 1 output folder for a target `MotusTagID × mfgID × state` combination |
 | `find_dataset_folders()`             | Used in the looped version to find all Step 1 output folders              |
 | `clean_dongle_family()`              | Standardizes dongle labels                                                |
 | `clean_system_family()`              | Standardizes receiver system labels                                       |
@@ -1736,7 +1741,7 @@ knitr::include_graphics(
 
 ---
 
-### `dropouts`
+### `dropouts` / corrected single-detection switches
 
 Dropout plots identify isolated apparent antenna or receiver switches corrected by the dropout algorithm.
 
@@ -2053,7 +2058,7 @@ data_parent_dir <- here(
   "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
 )
 
-source("Activity_Classification_Looped.R")
+source("Step3_LOOP_Activity_Classification.R")
 ```
 
 # Glossary

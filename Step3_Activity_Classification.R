@@ -1,5 +1,5 @@
 ###############################################################################
-# FILE: Activity_Classification.R
+# FILE: Step3_Activity_Classification.R
 #
 # PURPOSE:
 #   Classify biologically meaningful activity from Motus telemetry detections
@@ -150,20 +150,20 @@ stationary_receiver_selection_hours <- 24
 # Minimum number of valid consecutive signal-difference comparisons required
 # during the final window. This prevents sparse late-track detections from being
 # flagged too easily.
-stationary_min_valid_late <- 30
+stationary_min_valid_late <- 15
 
 # Minimum proportion of valid final-window signal differences that must stay
 # within the expected inactive threshold range.
 # Higher values make the screen stricter.
-stationary_min_prop_within <- 0.95
+stationary_min_prop_within <- 0.80
 
 # Maximum mean absolute signal difference allowed during the final window.
 # Lower values make the screen stricter and require very little signal change.
-stationary_max_mean_abs_sigdif <- 0.50
+stationary_max_mean_abs_sigdif <- 2.5
 
 # Minimum proportion of final-window detections that must occur on the focal
 # receiver. This reduces false flags caused by birds still moving among towers.
-stationary_min_receiver_prop <- 0.80
+stationary_min_receiver_prop <- 0.50
 
 # Folder containing one MotusTagID × mfgID dataset.
 data_parent_dir <- here(
