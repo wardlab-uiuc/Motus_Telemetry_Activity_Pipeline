@@ -185,13 +185,33 @@ if (!use_example_data) {
     "If prompted, enter your Motus username/email and password directly in the R console.\n"
   )
   
-  # Simple connection/download-location test before full download.
+  # Expected Motus database path
+  motus_file <- file.path(
+    motus_database_dir,
+    paste0("project-", projRecv_id, ".motus")
+  )
+  
+  # Does the database already exist?
+  create_new_db <- !file.exists(motus_file)
+  
+  if (create_new_db) {
+    
+    message("📦 No existing Motus database found.")
+    message("Creating new database: ", motus_file)
+    
+  } else {
+    
+    message("📂 Existing Motus database found.")
+    message("Using existing database: ", motus_file)
+  }
+  
+  # Attempt Motus connection/download
   tryCatch({
     
     tagme(
       projRecv = projRecv_id,
       dir = motus_database_dir,
-      new = FALSE
+      new = create_new_db
     )
     
   }, error = function(e) {
@@ -257,19 +277,34 @@ if (use_example_data) {
   # OPTION B: Download Motus database
   # ---------------------------------------------------------------------------
   
-  message("⬇️ Downloading Motus database...")
-  
-  tagme(
-    projRecv = projRecv_id,
-    dir = motus_database_dir,
-    new = TRUE
-  )
+  # ---------------------------------------------------------------------------
+  # Download or update Motus database
+  # ---------------------------------------------------------------------------
   
   motus_file <- file.path(
     motus_database_dir,
     paste0("project-", projRecv_id, ".motus")
   )
   
+  create_new_db <- !file.exists(motus_file)
+  
+  if (create_new_db) {
+    
+    message("📦 No existing Motus database found.")
+    message("Creating new database...")
+    
+  } else {
+    
+    message("📂 Existing Motus database found.")
+    message("Updating existing database...")
+  }
+  
+  tagme(
+    projRecv = projRecv_id,
+    dir = motus_database_dir,
+    new = create_new_db
+  )
+
   if (!file.exists(motus_file)) {
     stop("Motus database was not found at: ", motus_file)
   }
