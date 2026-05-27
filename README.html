@@ -3135,7 +3135,7 @@ order</h1>
        ↓
 3A. Activity_Classification.R
        OR
-3B. Activity_Classification_Looped.R</code></pre>
+3B. Step3_LOOP_Activity_Classification.R</code></pre>
 <div class="good">
 <p><strong>Recommended for first-time users:</strong> Begin with the
 included example dataset by setting <code>use_example_data &lt;-
@@ -3531,7 +3531,7 @@ from:</p>
 <li>Proportional signal change outside inactivity threshold bounds</li>
 <li>Antenna/port switching</li>
 <li>Receiver switching</li>
-<li>Meet tolerance of the duty cycle</li>
+<li>Timing within the expected duty cycle tolerance</li>
 <li>Adequate S2N</li>
 <li>Dropout correction</li>
 </ol>
@@ -3667,9 +3667,11 @@ packages</h1>
 <span id="cb21-21"><a href="#cb21-21" tabindex="-1"></a>  <span class="st">&quot;conflicted&quot;</span>,</span>
 <span id="cb21-22"><a href="#cb21-22" tabindex="-1"></a>  <span class="st">&quot;vroom&quot;</span></span>
 <span id="cb21-23"><a href="#cb21-23" tabindex="-1"></a>)</span></code></pre></div>
-<p>Some scripts install missing packages automatically, but it is
-usually better to install packages intentionally before running the full
-workflow.</p>
+<p>Step 1 automatically attempts to activate the project
+<code>renv</code> environment, restore packages from
+<code>renv.lock</code>, and install any still-missing packages. Steps 2
+and 3 also activate <code>renv</code> if available, but assume the
+package environment has already been set up.</p>
 </div>
 <div id="required-custom-functions" class="section level1" number="12">
 <h1><span class="header-section-number">12</span> Required custom
@@ -4096,7 +4098,7 @@ and split Motus data</h1>
 <h2><span class="header-section-number">14.2</span> Purpose</h2>
 <p>Step 1 downloads Motus project data, flattens the <code>.motus</code>
 database into a regular R project, applies the standard Motus filter,
-and svaes individual tag-level files. Essentially, this step prepares
+and saves individual tag-level files. Essentially, this step prepares
 Motus detections for the rest of the workflow.</p>
 <p>It can run in two modes:</p>
 <table>
@@ -4643,7 +4645,7 @@ activity and summarize detections</h1>
 <div id="script-options" class="section level2" number="16.1">
 <h2><span class="header-section-number">16.1</span> Script options</h2>
 <pre class="text"><code>Activity_Classification.R
-Activity_Classification_Looped.R</code></pre>
+Step3_LOOP_Activity_Classification.R</code></pre>
 </div>
 <div id="purpose-2" class="section level2" number="16.2">
 <h2><span class="header-section-number">16.2</span> Purpose</h2>
@@ -4674,7 +4676,7 @@ dropped-tag / mortality screen.</p>
 <td>One <code>data_dir</code></td>
 </tr>
 <tr class="even">
-<td><code>Activity_Classification_Looped.R</code></td>
+<td><code>Step3_LOOP_Activity_Classification.R</code></td>
 <td>Processing all tag datasets after testing</td>
 <td>One <code>data_parent_dir</code></td>
 </tr>
@@ -4698,10 +4700,17 @@ edit</h2>
 <span id="cb50-12"><a href="#cb50-12" tabindex="-1"></a>stationary_min_receiver_prop <span class="ot">&lt;-</span> <span class="fl">0.80</span></span></code></pre></div>
 <p>For the single-tag version, replace the folder name with the folder
 name of the bird you want to run:</p>
-<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" tabindex="-1"></a>data_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb51-2"><a href="#cb51-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>,</span>
-<span id="cb51-3"><a href="#cb51-3" tabindex="-1"></a>  <span class="st">&quot;93371_136_ExampleAllerton_051226_MotusFiltered&quot;</span></span>
-<span id="cb51-4"><a href="#cb51-4" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb51-2"><a href="#cb51-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb51-3"><a href="#cb51-3" tabindex="-1"></a>)</span>
+<span id="cb51-4"><a href="#cb51-4" tabindex="-1"></a></span>
+<span id="cb51-5"><a href="#cb51-5" tabindex="-1"></a>target_MotusTagID <span class="ot">&lt;-</span> <span class="st">&quot;84746&quot;</span></span>
+<span id="cb51-6"><a href="#cb51-6" tabindex="-1"></a>target_mfgID <span class="ot">&lt;-</span> <span class="st">&quot;160&quot;</span></span>
+<span id="cb51-7"><a href="#cb51-7" tabindex="-1"></a>target_state <span class="ot">&lt;-</span> <span class="st">&quot;ExampleAllerton&quot;</span></span></code></pre></div>
+<p>The single-tag Step 3 script searches <code>data_parent_dir</code>
+for folders matching the requested <code>target_MotusTagID</code>,
+<code>target_mfgID</code>, and <code>target_state</code>, then
+automatically selects the most recent <code>download_id</code>.</p>
 <p>For the looped version:</p>
 <div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
 <span id="cb52-2"><a href="#cb52-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
@@ -4873,101 +4882,106 @@ save tables and plots</code></pre>
 date code from the folder name</td>
 </tr>
 <tr class="even">
+<td><code>find_latest_dataset_folder()</code></td>
+<td>Finds the newest matching Step 1 output folder for a target
+<code>MotusTagID × mfgID × state</code> combination</td>
+</tr>
+<tr class="odd">
 <td><code>find_dataset_folders()</code></td>
 <td>Used in the looped version to find all Step 1 output folders</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>clean_dongle_family()</code></td>
 <td>Standardizes dongle labels</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>clean_system_family()</code></td>
 <td>Standardizes receiver system labels</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>build_tower_eras()</code></td>
 <td>Creates receiver-era metadata from tower metadata</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>load_threshold_table()</code></td>
 <td>Loads Step 2 threshold summary tables</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>build_tower_type_thresholds()</code></td>
 <td>Aggregates bird-era thresholds into receiver-type thresholds</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>get_receiver_thresholds()</code></td>
 <td>Matches detections to receiver-era thresholds by receiver and
 date</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>get_bird_deployments()</code></td>
 <td>Resolves true biological deployments from bird metadata</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>get_deployment_end()</code></td>
 <td>Defines deployment end dates while preventing redeployment
 overlap</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>filter_to_deployment_window()</code></td>
 <td>Keeps detections that fall within the biological deployment
 window</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>define_multi_receiver_sites()</code></td>
 <td>Defines receiver groups that should be treated as one site</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>filter_to_site_receivers()</code></td>
 <td>Retains the top receiver or grouped multi-receiver site</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>clean_and_select_strongest_detections()</code></td>
 <td>Aligns detections to the duty cycle and keeps strongest
 detections</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>check_missing_thresholds()</code></td>
 <td>Stops classification if receiver metadata or thresholds are
 missing</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>attach_receiver_parameters()</code></td>
 <td>Adds thresholds, tower type, tolerance, and S2N cutoff</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>summarize_deployment_thresholds()</code></td>
 <td>Creates deployment-level median thresholds for plotting</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>screen_stationary_tag_deployment()</code></td>
 <td>Screens for possible stationary-tag / dropped-tag / mortality
 patterns</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>save_stationary_tag_screen()</code></td>
 <td>Saves stationary-tag screening outputs</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>classify_detection_activity()</code></td>
 <td>Converts detections to wide format and runs
 <code>classify_activity()</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>summarize_hourly_activity()</code></td>
 <td>Summarizes activity by date, hour, and diel period</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>summarize_hourly_across_days()</code></td>
 <td>Aggregates hourly activity across retained days</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>save_activity_tables()</code></td>
 <td>Saves deployment-specific output tables</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>make_and_save_plots()</code></td>
 <td>Creates and saves the full diagnostic plotting suite</td>
 </tr>
@@ -5657,9 +5671,9 @@ receivers, weak signal quality, or poor threshold fit.</p>
 lower and upper activity thresholds overlaid.</p>
 <hr />
 </div>
-<div id="dropouts" class="section level3" number="18.0.6">
+<div id="dropouts-corrected-single-detection-switches" class="section level3" number="18.0.6">
 <h3><span class="header-section-number">18.0.6</span>
-<code>dropouts</code></h3>
+<code>dropouts</code> / corrected single-detection switches</h3>
 <p>Dropout plots identify isolated apparent antenna or receiver switches
 corrected by the dropout algorithm.</p>
 <p>These events likely reflect temporary receiver-processing
@@ -6060,7 +6074,7 @@ datasets</h2>
 <span id="cb68-2"><a href="#cb68-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
 <span id="cb68-3"><a href="#cb68-3" tabindex="-1"></a>)</span>
 <span id="cb68-4"><a href="#cb68-4" tabindex="-1"></a></span>
-<span id="cb68-5"><a href="#cb68-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification_Looped.R&quot;</span>)</span></code></pre></div>
+<span id="cb68-5"><a href="#cb68-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step3_LOOP_Activity_Classification.R&quot;</span>)</span></code></pre></div>
 </div>
 </div>
 <div id="glossary" class="section level1" number="25">
