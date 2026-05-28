@@ -671,8 +671,9 @@ clean_and_select_strongest_detections <- function(data, duty_cycle) {
     group_by(duty_time) %>%
     slice_max(sig, n = 1, with_ties = FALSE) %>%
     ungroup() %>%
-    mutate(date_time_local = round_date(date_time_local, "second"))
-}
+    mutate(date_time_local = duty_time) %>%
+    select(-time_num, -duty_align, -duty_time)
+  }
 
 # ------------------------------------------------------------------------------
 # Helper: check_missing_thresholds()
@@ -732,7 +733,9 @@ attach_receiver_parameters <- function(data_clean, tower_long, tower_type_thresh
     }
   )
   
-  if (missing_threshold_error) next
+  if (missing_threshold_error) {
+    return(NULL)
+  }
   
   data_clean %>%
     left_join(
@@ -1460,18 +1463,17 @@ for (i in seq_len(nrow(bird_deployments))) {
   # Attach receiver thresholds and receiver-specific parameters.
   # ---------------------------------------------------------------------------
   
-  receiver_thresholds <- get_receiver_thresholds(
-    data = data_clean,
-    tower_long = tower_long,
-    tower_type_thresholds = tower_type_thresholds
-  )
-  
   data_clean <- attach_receiver_parameters(
     data_clean = data_clean,
     tower_long = tower_long,
     tower_type_thresholds = tower_type_thresholds,
     parameter_lookup = parameter_lookup
   )
+  
+  if (is.null(data_clean)) {
+    message("  ⏭️ Moving to next deployment.")
+    next
+  }
   
   stopifnot(!any(is.na(data_clean$lower_ratio)))
   stopifnot(!any(is.na(data_clean$upper_ratio)))
