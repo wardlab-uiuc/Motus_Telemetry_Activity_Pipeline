@@ -1,13 +1,13 @@
-Telemetry Activity Pipeline
+Motus Telemetry Activity Pipeline
 ================
 Lauren Brunk
-Last updated: May 27, 2026
+Last updated: May 28, 2026
 
 - [Quick summary](#quick-summary)
   - [Documentation formats](#documentation-formats)
+- [Contact](#contact)
 - [Opening the project in RStudio](#opening-the-project-in-rstudio)
 - [Reproducible package environment](#reproducible-package-environment)
-- [Contact](#contact)
 - [Included example dataset](#included-example-dataset)
 - [What this pipeline is designed to
   do](#what-this-pipeline-is-designed-to-do)
@@ -43,12 +43,15 @@ Last updated: May 27, 2026
   - [Motus detection data](#motus-detection-data)
     - [Option A: Included example
       dataset](#option-a-included-example-dataset)
-    - [Option B: Full Motus project
-      download](#option-b-full-motus-project-download)
+    - [Option B: Existing alltags-style `.rds`
+      file](#option-b-existing-alltags-style-rds-file)
+    - [Option C: Full Motus project
+      download](#option-c-full-motus-project-download)
   - [Metadata structure notes](#metadata-structure-notes)
     - [Bird metadata rows](#bird-metadata-rows)
     - [Bird metadata columns](#bird-metadata-columns)
     - [Why `Date_end` matters](#why-date_end-matters)
+    - [Why `Time_tagged` matters](#why-time_tagged-matters)
     - [Tower metadata rows](#tower-metadata-rows)
     - [Tower metadata columns](#tower-metadata-columns)
     - [Receiver hardware changes](#receiver-hardware-changes)
@@ -57,10 +60,18 @@ Last updated: May 27, 2026
   - [Script](#script)
   - [Purpose](#purpose)
   - [Main settings to edit](#main-settings-to-edit)
+    - [Run mode](#run-mode)
+    - [Example mode settings](#example-mode-settings)
+    - [Existing `.rds` mode settings](#existing-rds-mode-settings)
+    - [Motus download settings](#motus-download-settings)
+    - [Shared output/path settings](#shared-outputpath-settings)
+    - [Setting descriptions](#setting-descriptions)
   - [Running Step 1 with the example
     dataset](#running-step-1-with-the-example-dataset)
   - [Running Step 1 with a full Motus
     project](#running-step-1-with-a-full-motus-project)
+  - [Running Step 1 with an existing alltags `.rds`
+    file](#running-step-1-with-an-existing-alltags-rds-file)
   - [Step 1 outputs](#step-1-outputs)
 - [Step 2: Estimate signal
   thresholds](#step-2-estimate-signal-thresholds)
@@ -74,7 +85,7 @@ Last updated: May 27, 2026
     - [Load metadata and create receiver
       eras](#load-metadata-and-create-receiver-eras)
     - [Select each bird’s top receiver](#select-each-birds-top-receiver)
-    - [Select strongest antenna](#select-strongest-antenna)
+    - [Select strongest detection](#select-strongest-detection)
     - [Add diel timing](#add-diel-timing)
     - [Calculate signal metrics](#calculate-signal-metrics)
     - [Estimate nighttime baseline](#estimate-nighttime-baseline)
@@ -140,6 +151,8 @@ Last updated: May 27, 2026
   troubleshooting](#common-errors-and-troubleshooting)
   - [Motus login and download
     troubleshooting](#motus-login-and-download-troubleshooting)
+    - [Existing `.rds` file mode
+      troubleshooting](#existing-rds-file-mode-troubleshooting)
   - [Error: no matching bird metadata
     found](#error-no-matching-bird-metadata-found)
   - [Error: missing receiver metadata](#error-missing-receiver-metadata)
@@ -221,9 +234,9 @@ body {
 
 # Quick summary
 
-This README explains the **Telemetry Activity Pipeline**, which converts
-Motus detection data into individual activity classifications and hourly
-activity summaries.
+This README explains the **Motus Telemetry Activity Pipeline**, which
+converts Motus detection data into individual activity classifications
+and hourly activity summaries.
 
 The workflow was developed for **Wood Thrush activity estimation from
 automated radiotelemetry**, but the overall structure can be adapted to
@@ -275,10 +288,20 @@ options for Step 3:
 
 | Step | Script | Main purpose | Main output |
 |----|----|----|----|
-| 1 | `Step1_Motus_to_Individual_Birds.R` | Load the included example dataset or download Motus data, apply the Motus filter, and save Motus-filtered files per `MotusTagID × mfgID` | Individual tag `.rds` and `.csv` files |
-| 2 | `Step2_Activity_Threshold_Calculation.R` | Estimate movement thresholds from inactivity baseline signal variation | Threshold summary tables, threshold `.rds` files, and diagnostic plots |
+| 1 | `Step1_Motus_to_Individual_Birds.R` | Load the included example dataset, load an existing alltags-style `.rds` file, or download Motus data; then apply the Motus filter and save Motus-filtered files per `MotusTagID × mfgID` | Individual tag `.rds` and `.csv` files |
+| 2 | `Step2_Activity_Threshold_Calculation.R` | Estimate inactivity thresholds from inactivity baseline signal variation | Threshold summary tables, threshold `.rds` files, and diagnostic plots |
 | 3A | `Step3_Activity_Classification.R` | Apply receiver-type thresholds to classify activity for one tag dataset at a time | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
 | 3B | `Step3_LOOP_Activity_Classification.R` | Apply receiver-type thresholds to all tag datasets in the Step 1 output folder | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
+
+# Contact
+
+For questions about the pipeline, assumptions, or adapting the code to
+another project, contact:
+
+| Name         | Role                                | Email                  |
+|--------------|-------------------------------------|------------------------|
+| Lauren Brunk | Pipeline author / thesis researcher | `lbrunk2@illinois.edu` |
+| Mike Ward    | Advisor / project contact           | `mpward@illinois.edu`  |
 
 # Opening the project in RStudio
 
@@ -309,16 +332,6 @@ using:
 ``` r
 install.packages("renv")
 ```
-
-# Contact
-
-For questions about the pipeline, assumptions, or adapting the code to
-another project, contact:
-
-| Name         | Role                                | Email                  |
-|--------------|-------------------------------------|------------------------|
-| Lauren Brunk | Pipeline author / thesis researcher | `lbrunk2@illinois.edu` |
-| Mike Ward    | Advisor / project contact           | `mpward@illinois.edu`  |
 
 # Included example dataset
 
@@ -353,18 +366,15 @@ The example dataset is intentionally small so users can quickly test:
 - Output generation
 - Diagnostic plots
 
-The example dataset still follows the same general structure as a Motus
-`alltags` table, so the same Step 1 workflow can be used for both the
-example dataset and a full Motus project download.
-
-<div class="warning">
-
-<strong>Important:</strong> The example dataset is not already filtered.
-Step 1 still applies the standard Motus filter using <code>motusFilter
-== 1</code>, which retains detections that passed the standard Motus
-filtering process.
-
-</div>
+The example dataset is a flattened version of the Motus alltags view. In
+a downloaded Motus project database, detections are stored in a .motus
+SQLite file made up of multiple linked tables. The alltags view combines
+tag detection records with commonly used tag, receiver, antenna,
+project, and species metadata into one convenient table. This pipeline
+uses that alltags-style format as the starting point for Step 1, so the
+same workflow can be used whether users begin with the included example
+.rds file, an already-exported alltags .rds file, or a full Motus
+project download.
 
 # What this pipeline is designed to do
 
@@ -372,7 +382,8 @@ This pipeline estimates **movement-based activity** from automated
 radiotelemetry detections. It does not directly observe or identify
 specific behaviors. Instead, it uses signal variation, receiver
 switching, antenna switching, and detection timing to infer whether a
-tagged bird was likely moving.
+tagged bird was likely moving, and ultimately producing hourly activity
+rates.
 
 The pipeline was specifically designed to address several common
 problems in Motus telemetry data:
@@ -407,7 +418,7 @@ Run the scripts in this order:
        ↓
 2. Step2_Activity_Threshold_Calculation.R
        ↓
-3A. Activity_Classification.R
+3A. Step3_Activity_Classification.R
        OR
 3B. Step3_LOOP_Activity_Classification.R
 ```
@@ -415,33 +426,25 @@ Run the scripts in this order:
 <div class="good">
 
 <strong>Recommended for first-time users:</strong> Begin with the
-included example dataset by setting <code>use_example_data \<-
-TRUE</code> in Step 1. After the workflow runs successfully, users can
-switch to <code>use_example_data \<- FALSE</code> and apply the same
-scripts to their own Motus project. Use the single-tag Step 3 script
-first for testing, then use the looped Step 3 script for batch
+included example dataset by setting <code>run_mode \<- “example”</code>
+in Step 1. After the workflow runs successfully, users can switch to
+run_mode \<- “motus_download” or run_mode \<- “existing_rds” and apply
+the same scripts to their own Motus project. Use the single-tag Step 3
+script first for testing, then use the looped Step 3 script for batch
 processing.
 
 </div>
 
 # Data permissions and usage
 
-The included example dataset is provided solely for demonstrating and
-testing the workflow contained in this repository.
+The included example detections are provided only for demonstrating and
+testing this workflow. They originate from the Illinois Wood Thrush
+Project and should not be redistributed, republished, or reused outside
+this repository without permission from the project investigators.
 
-These example detections originate from the Illinois Wood Thrush Project
-and are intentionally limited in spatial and temporal scope. Users
-should not redistribute, republish, or reuse the example data outside
-the context of testing or learning the pipeline without permission from
-the original project investigators.
-
-Users applying this workflow to their own Motus projects are responsible
-for complying with all relevant Motus data-use agreements, project
-permissions, permitting requirements, and collaborator expectations.
-
-This repository distributes code and a small demonstration dataset only.
-Ownership and permissions associated with original Motus detection data
-remain with the respective project investigators and data contributors.
+Users applying this pipeline to their own Motus projects are responsible
+for following relevant Motus data-use agreements, project permissions,
+permitting requirements, and collaborator expectations.
 
 # Key concepts and definitions
 
@@ -592,7 +595,7 @@ Examples:
 Funcube_Sensorgnome
 RTL_Sensorgnome
 Funcube_CTT
-SigmaEight_SigmaEight (special case -- Sigma Eight does not have interchangable dongles)
+SigmaEight_SigmaEight (special case -- Sigma Eight does not have interchangeable dongles)
 ```
 
 ## Duty cycle
@@ -1010,14 +1013,14 @@ function files.
 
 ## Motus detection data
 
-Step 1 can load Motus detection data in two ways.
+Step 1 supports three input modes.
 
 ### Option A: Included example dataset
 
 For first-time users:
 
 ``` r
-use_example_data <- TRUE
+run_mode <- "example"
 ```
 
 This loads:
@@ -1030,12 +1033,59 @@ This file contains a small subset of individuals from the Illinois Wood
 Thrush Project Motus project 787 at the Allerton and Allerton South
 towers from May 25–June 2, 2025.
 
-### Option B: Full Motus project download
+------------------------------------------------------------------------
 
-For users applying the pipeline to their own Motus project:
+### Option B: Existing alltags-style `.rds` file
+
+Users who already have a flattened Motus-style detection table can load
+it directly without downloading a `.motus` database.
+
+Example:
 
 ``` r
-use_example_data <- FALSE
+run_mode <- "existing_rds"
+
+existing_alltags_rds <- "//path/to/your/alltags_file.rds"
+```
+
+This mode is useful when:
+
+- sharing processed Motus detection tables among collaborators
+- working from a network drive
+- reusing previously flattened alltags files
+- applying the pipeline to archived projects
+- avoiding repeated Motus downloads
+
+The `.rds` file should contain a Motus-style detection table that
+includes at minimum:
+
+| Required column  | Purpose                    |
+|------------------|----------------------------|
+| `motusTagID`     | Tag dataset ID             |
+| `mfgID`          | Manufacturer ID            |
+| `motusFilter`    | Standard Motus filter flag |
+| `sig`            | Signal strength            |
+| `noise`          | Background noise           |
+| `recvDeployName` | Receiver name              |
+
+Timestamp columns can be stored as:
+
+``` text
+time
+tsCorrected
+ts
+```
+
+The script automatically standardizes these during loading.
+
+------------------------------------------------------------------------
+
+### Option C: Full Motus project download
+
+For users downloading directly from Motus:
+
+``` r
+run_mode <- "motus_download"
 ```
 
 The script then downloads data using:
@@ -1044,26 +1094,18 @@ The script then downloads data using:
 tagme(
   projRecv = projRecv_id,
   dir = motus_database_dir,
-  new = TRUE
+  new = create_new_db
 )
 ```
 
-This creates a `.motus` SQLite database, which is then flattened into a
-regular R table.
+This creates or updates a `.motus` SQLite database, which is then
+flattened into a standard R dataframe.
 
-Important columns include:
+If downloading a Motus project for the first time, the R console may
+prompt for Motus login credentials before the workflow continues.
 
-| Column           | Description              | Used in       |
-|------------------|--------------------------|---------------|
-| `ts`             | Original Motus timestamp | Step 1        |
-| `tsCorrected`    | Corrected timestamp      | Steps 2 and 3 |
-| `motusFilter`    | Motus filter flag        | Step 1        |
-| `motusTagID`     | Motus tag ID             | All steps     |
-| `mfgID`          | Manufacturer ID          | All steps     |
-| `sig`            | Signal strength          | Steps 2 and 3 |
-| `noise`          | Background noise         | Steps 2 and 3 |
-| `recvDeployName` | Receiver name            | Steps 2 and 3 |
-| `port`           | Antenna port             | Step 3        |
+The login/download step occurs once before the individual-tag processing
+loop begins.
 
 ## Metadata structure notes
 
@@ -1076,8 +1118,7 @@ For downstream analyses, each unique `Year × Band × deployment`
 combination should have its own row. This is important because a bird’s
 metadata can change among years or deployments. For example, the same
 banded bird may be recorded in a later year with a different age class,
-mass, condition score, tagging location, deployment period, or
-transmitter.
+mass, condition score, deployment period, or transmitter.
 
 Similarly, the same `motusTagID × mfgID` can appear in multiple rows if
 a tag was redeployed on a different bird, in a different year, or during
@@ -1094,22 +1135,22 @@ tag from being treated as one continuous bird.
 
 ### Bird metadata columns
 
-| Column | Description |
-|----|----|
-| `State` | State or broad study-region label |
-| `Site_tagged` | General site where the bird was tagged. Primarily retained for biological interpretation, deployment organization, and downstream analyses. This can be useful in systems with multiple nearby receivers associated with the same study site. |
-| `recvDeployName` | Closest Motus receiver/tower to the tagging location. Retained primarily for interpretation, metadata tracking, and downstream analyses |
-| `Year` | Field season or deployment year |
-| `Lat`, `Lon` | Deployment location used for sunrise/sunset and diel timing calculations |
-| `Date_tagged` | Date the tag was deployed on the bird |
-| `Date_end` | Final date detections should be included for that deployment. This can include the date of known mortality/tag recovery, the last date the bird was considered local, or the date of departure from a site |
-| `Time_tagged` | Time of tagging; retained for reference but not required for most pipeline steps |
-| `Species` | Species alpha/banding code |
-| `Band` | Bird band number used to identify the biological individual/deployment. Store without dashes or underscores |
-| `motusTagID` | Unique Motus tag identifier |
-| `mfgID` | Manufacturer tag identifier; not globally unique |
-| `Age`, `Sex`, `How Aged` | Biological metadata retained for interpretation and downstream analyses |
-| `Mass`, `Tarsus`, `Wing`, `Tail`, `Fat`, `Muscle` | Morphological and condition measurements retained for interpretation and downstream analyses |
+| Column | Description | How the pipeline uses it |
+|----|----|----|
+| `State` | State or broad study-region label | Primarily retained for organization and interpretation |
+| `Site_tagged` | General site where the bird was tagged | Primarily retained for biological interpretation, deployment organization, and downstream analyses |
+| `recvDeployName` | Closest Motus receiver/tower to the tagging location | Retained primarily for interpretation and metadata tracking |
+| `Year` | Field season or deployment year | Primarily informational |
+| `Lat`, `Lon` | Deployment location | Used for sunrise/sunset and diel timing calculations via `info_fast()` |
+| `Date_tagged` | Date the tag was deployed on the bird | Used to define the beginning of the deployment window |
+| `Date_end` | Final date detections should be included for that deployment | Used to define the end of the deployment window |
+| `Time_tagged` | Local time of transmitter deployment | Used in Step 3 to prevent detections collected before tagging or immediately during handling/release from being included in activity estimation |
+| `Species` | Species alpha/banding code | Primarily informational |
+| `Band` | Bird band number used to identify the biological individual/deployment | Used with deployment dates to resolve redeployments and separate true biological deployments |
+| `motusTagID` | Unique Motus tag identifier | Used with `mfgID` to identify tag datasets |
+| `mfgID` | Manufacturer tag identifier; not globally unique | Used with `motusTagID` to identify tag datasets |
+| `Age`, `Sex`, `How Aged` | Biological metadata | Retained for interpretation and downstream analyses |
+| `Mass`, `Tarsus`, `Wing`, `Tail`, `Fat`, `Muscle` | Morphological and condition measurements | Retained for interpretation and downstream analyses |
 
 ### Why `Date_end` matters
 
@@ -1137,12 +1178,38 @@ of the detection record. This can unintentionally include detections
 from migration, dispersal, wintering areas, or unrelated receiver arrays
 outside the intended study period.
 
-In some cases, this may also cause the Step 3 workflow to fail if the
-bird is later detected by receivers that are not represented in the
-provided `Tower_Metadata.csv` file or do not have matching receiver-type
-thresholds. For this reason, missing `Date_end` values should be
-reviewed carefully, especially when analyses are intended to represent
-activity within a specific season, site, or receiver array.
+<div class="warning">
+
+<strong>Important:</strong> If birds continue to be detected during
+migration on receivers that are not included in the provided
+<code>Tower_Metadata.csv</code> file, those detections will not have
+matching receiver metadata or receiver-type thresholds. As a result,
+activity from those receivers cannot be classified by the workflow
+unless the relevant receiver metadata and threshold information are
+added.
+
+</div>
+
+### Why `Time_tagged` matters
+
+`Time_tagged` is also strongly recommended because it defines when
+activity estimation should begin within the tagging day.
+
+Without `Time_tagged`, the workflow must assume the deployment began at
+the start of the tagging date (`00:00:00`). This can unintentionally
+retain detections collected before release or during handling
+immediately after tagging.
+
+Including `Time_tagged` helps ensure that activity estimates represent
+post-release behavior rather than capture or handling effects.
+
+<div class="warning">
+
+<strong>Important:</strong> `Time_tagged` is especially important for
+users who turn their tags on days or weeks in advance of actual tag
+deployment.
+
+</div>
 
 ### Tower metadata rows
 
@@ -1156,24 +1223,24 @@ different signal-strength behavior.
 
 ### Tower metadata columns
 
-| Column | Description |
-|----|----|
-| `State` | State or broad study-region label |
-| `recvDeployName` | Receiver name; must match `recvDeployName` in the Motus detection data |
-| `Site` | Study site or receiver group |
-| `recvDeployID` | Motus receiver deployment ID |
-| `Lat`, `Lon` | Receiver location |
-| `County` | County where the receiver is located |
-| `NumberOfAntennas` | Number of antennas at the receiver |
-| `Antenna_Numbers` | Antenna ports expected at that receiver |
-| `DongleType_1` | Dongle type during the first receiver era |
-| `DongleType_2` | Dongle type during the second receiver era, if hardware changed |
-| `Antenna` | Antenna type or antenna notes |
-| `System1` | Receiver system during the first receiver era |
-| `System2` | Receiver system during the second receiver era, if hardware changed |
-| `System1End` | Last date of the first receiver era |
-| `Dongle_notes` | Notes about dongles or hardware |
-| `Notes` | Additional receiver notes |
+| Column | Description | How the pipeline uses it |
+|----|----|----|
+| `State` | State or broad study-region label | Primarily retained for organization and interpretation |
+| `recvDeployName` | Receiver name; must match `recvDeployName` in the Motus detection data | Required for matching detections to receiver metadata and thresholds |
+| `Site` | Study site or receiver group | Primarily retained for interpretation; can help define multi-receiver sites |
+| `recvDeployID` | Motus receiver deployment ID | Retained mainly for metadata tracking |
+| `Lat`, `Lon` | Receiver location | Primarily retained for interpretation and mapping |
+| `County` | County where the receiver is located | Retained for metadata and interpretation |
+| `NumberOfAntennas` | Number of antennas at the receiver | Primarily informational |
+| `Antenna_Numbers` | Antenna ports expected at that receiver | Can assist with interpreting antenna-port behavior and diagnostics |
+| `DongleType_1` | Dongle type during the first receiver era | Used to define receiver/tower type and assign thresholds |
+| `DongleType_2` | Dongle type during the second receiver era, if hardware changed | Used when constructing later receiver eras |
+| `Antenna` | Antenna type or antenna notes | Primarily informational |
+| `System1` | Receiver system during the first receiver era | Used to define receiver/tower type and assign thresholds |
+| `System2` | Receiver system during the second receiver era, if hardware changed | Used when constructing later receiver eras |
+| `System1End` | Last date of the first receiver era | Used to split receivers into hardware eras |
+| `Dongle_notes` | Notes about dongles or hardware | Informational |
+| `Notes` | Additional receiver notes | Informational |
 
 ### Receiver hardware changes
 
@@ -1225,18 +1292,19 @@ Step1_Motus_to_Individual_Birds.R
 ## Purpose
 
 Step 1 downloads Motus project data, flattens the `.motus` database into
-a regular R project, applies the standard Motus filter, and saves
+a regular R dataframe, applies the standard Motus filter, and saves
 individual tag-level files. Essentially, this step prepares Motus
 detections for the rest of the workflow.
 
-It can run in two modes:
+It can run in three modes:
 
 | Mode | Setting | What it does |
 |----|----|----|
-| Example mode | `use_example_data <- TRUE` | Loads the included example dataset |
-| Download mode | `use_example_data <- FALSE` | Downloads a full Motus project |
+| Example mode | `run_mode <- "example"` | Loads the included example dataset |
+| Existing RDS mode | `run_mode <- "existing_rds"` | Loads an already-existing alltags-style `.rds` file |
+| Motus download mode | `run_mode <- "motus_download"` | Downloads or updates a full Motus project |
 
-After loading data, both modes follow the same workflow:
+After loading data, all modes follow the same workflow:
 
 1.  Check required columns
 2.  Apply `motusFilter == 1` to retain detections that passed the
@@ -1246,43 +1314,111 @@ After loading data, both modes follow the same workflow:
 
 ## Main settings to edit
 
+### Run mode
+
+Choose one:
+
+#### Example mode
+
 ``` r
-use_example_data <- TRUE
+run_mode <- "example"
+```
 
+Loads the included example dataset packaged with the repository.
+
+------------------------------------------------------------------------
+
+#### Existing `.rds` mode
+
+``` r
+run_mode <- "existing_rds"
+```
+
+Loads an already-existing flattened Motus-style `.rds` detection table.
+
+------------------------------------------------------------------------
+
+#### Motus download mode
+
+``` r
+run_mode <- "motus_download"
+```
+
+Downloads or updates a Motus project database and extracts the `alltags`
+table.
+
+------------------------------------------------------------------------
+
+### Example mode settings
+
+``` r
 example_rds <- here(
-  "Sample_Data", "Raw", "Raw_Tower", 
+  "Sample_Data",
+  "Raw",
+  "Raw_Tower",
   "Example_Allerton_WOTH_052525_060225.rds"
-)
-
-# OR
-
-projRecv_id <- 787
-state_label <- "IL"
-project_label <- "IL_WOTH"
-
-motus_database_dir <- here("Sample_Data", "Raw", "Raw_Tower")
-
-filtered_indiv_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
 )
 ```
 
+------------------------------------------------------------------------
+
+### Existing `.rds` mode settings
+
+``` r
+existing_alltags_rds <- "//path/to/your/alltags_file.rds"
+```
+
+------------------------------------------------------------------------
+
+### Motus download settings
+
+``` r
+projRecv_id <- 787
+```
+
+------------------------------------------------------------------------
+
+### Shared output/path settings
+
+``` r
+state_label <- "IL"
+
+project_label <- "IL_WOTH"
+
+motus_database_dir <- here(
+  "Sample_Data",
+  "Raw",
+  "Raw_Tower"
+)
+
+filtered_indiv_dir <- here(
+  "Sample_Data",
+  "Interim",
+  "Motus_Tower_Data_Filtered"
+)
+```
+
+------------------------------------------------------------------------
+
+### Setting descriptions
+
 | Setting | Meaning |
 |----|----|
-| `use_example_data` | Controls whether the script loads the included example dataset or downloads Motus data |
-| `example_rds` | Path to the included example `.rds` file |
-| `projRecv_id` | Motus project ID used when downloading data. This can be found on the Motus website under <code>Manage → Manage Projects</code>. The numeric project ID appears alongside the project name. |
-| `state_label` | Short location label used in output filenames; can be adjusted to match the study region or project naming scheme |
-| `project_label` | Project label used when saving flattened `alltags` data |
-| `motus_database_dir` | Folder for downloaded `.motus` files and flattened `alltags` files |
-| `filtered_indiv_dir` | Folder where individual Motus-filtered tag datasets are saved |
+| `run_mode` | Controls how Step 1 loads Motus detections |
+| `example_rds` | Path to the included example dataset |
+| `existing_alltags_rds` | Path to an already-existing flattened Motus-style `.rds` file |
+| `projRecv_id` | Motus project ID used when downloading data. This can typically be found on the Motus website under your project page URL or in the project metadata. |
+| `state_label` | Short label used in output filenames |
+| `project_label` | Label used when saving flattened alltags files |
+| `motus_database_dir` | Folder for `.motus` databases and flattened alltags files |
+| `filtered_indiv_dir` | Folder where individual tag datasets are saved |
 
 ## Running Step 1 with the example dataset
 
 To use the included example data:
 
 ``` r
-use_example_data <- TRUE
+run_mode <- "example"
 ```
 
 The script loads:
@@ -1315,24 +1451,53 @@ It also saves a reproducible copy of the example alltags-style file.
 To download a real Motus project:
 
 ``` r
-use_example_data <- FALSE
-projRecv_id <- 787 #Update with your Motus Project ID
+run_mode <- "motus_download"
+
+projRecv_id <- 787 # Update with your Motus project ID
+
+state_label <- "IL"
+project_label <- "IL_WOTH"
+
+source("Step1_Motus_to_Individual_Birds.R")
 ```
 
 Then update the paths as needed.
 
-The script then runs:
+If downloading a Motus project for the first time, the R console may
+prompt for Motus login credentials before the workflow continues.
+
+------------------------------------------------------------------------
+
+## Running Step 1 with an existing alltags `.rds` file
 
 ``` r
-tagme(
-  projRecv = projRecv_id,
-  dir = motus_database_dir,
-  new = TRUE
-)
+run_mode <- "existing_rds"
+
+existing_alltags_rds <- "//path/to/your/alltags_file.rds"
+
+state_label <- "IL"
+project_label <- "WOTH"
+
+source("Step1_Motus_to_Individual_Birds.R")
 ```
 
-which downloads the project `.motus` database and extracts the `alltags`
-table.
+Example:
+
+``` r
+run_mode <- "existing_rds"
+
+existing_alltags_rds <- "//Desktop/Telemetry_Activity_Pipeline/raw/
+df_alltagsWOTH.rds"
+
+state_label <- "WOTH"
+project_label <- "IL"
+
+source("Step1_Motus_to_Individual_Birds.R")
+```
+
+This mode allows users to run the workflow from an already-existing
+flattened Motus-style detection table without downloading or updating a
+`.motus` database.
 
 ## Step 1 outputs
 
@@ -1466,8 +1631,8 @@ dataset.
 ### Load metadata and create receiver eras
 
 The script loads bird metadata and tower metadata. Bird metadata
-provides coordinates for diel classification. Tower metadata provides
-receiver system and dongle type.
+provides coordinates for diel timing classification. Tower metadata
+provides receiver system and dongle type.
 
 Receivers are split into eras if the hardware or system changed. This
 avoids estimating one threshold across multiple hardware configurations.
@@ -1479,7 +1644,7 @@ number of detections within a receiver era. Thresholds are estimated
 from the top receiver because it usually provides the most consistent
 and robust signal data.
 
-### Select strongest antenna
+### Select strongest detection
 
 Within short time windows, the script keeps the strongest detection
 across receivers and antennas. This removes repeated detections from the
@@ -1538,9 +1703,10 @@ night_baseline_data <- era_threshold_data %>%
 It then requires at least `min_consecutive_night_detections` consecutive
 nighttime detections occurring at approximately the duty-cycle interval
 within the tolerance. This requirement helps ensure that thresholds are
-estimated from sustained periods of stable detections rather than
-isolated nighttime detections, sparse sampling, or fragmented detection
-sequences caused by real movement or missed bursts.
+estimated from sustained periods of stable nighttime detection coverage
+rather than isolated detections or fragmented detection sequences caused
+by missed bursts, intermittent receiver coverage, or birds moving in and
+out of reliable detection range.
 
 ### Calculate proportional thresholds
 
@@ -1610,14 +1776,14 @@ file for reproducibility.
 |----|----|
 | `summary_table` | One row per bird × receiver era containing threshold estimates and quality-control metrics |
 | `all_results` | `.rds` file containing the full processed results list for each bird × receiver era |
-| `threshold_hist_plots/` | Diagnostic histograms of signal differences with threshold lines, including both individual bird-era plots and combined plots grouped by receiver/tower type |
+| `threshold_hist_plots/` | Diagnostic histograms of signal differences with threshold lines, including both individual bird-era plots and combined plots grouped by receiver/tower type (thresholds grouped by tower type are what are ultimately used in activity classification) |
 
 # Step 3: Classify activity and summarize detections
 
 ## Script options
 
 ``` text
-Activity_Classification.R
+Step3_Activity_Classification.R
 Step3_LOOP_Activity_Classification.R
 ```
 
@@ -1635,7 +1801,7 @@ There are two versions of Step 3:
 
 | Version | Best used for | Main input |
 |----|----|----|
-| `Activity_Classification.R` | Testing or processing one tag dataset at a time | One `data_dir` |
+| `Step3_Activity_Classification.R` | Testing or processing one tag dataset at a time | One `data_dir` |
 | `Step3_LOOP_Activity_Classification.R` | Processing all tag datasets after testing | One `data_parent_dir` |
 
 ## Main settings to edit
@@ -1649,10 +1815,10 @@ run_stationary_tag_screen <- TRUE
 
 stationary_late_window_hours <- 72
 stationary_receiver_selection_hours <- 24
-stationary_min_valid_late <- 30
-stationary_min_prop_within <- 0.95
-stationary_max_mean_abs_sigdif <- 0.50
-stationary_min_receiver_prop <- 0.80
+stationary_min_valid_late <- 15
+stationary_min_prop_within <- 0.80
+stationary_max_mean_abs_sigdif <- 2.5
+stationary_min_receiver_prop <- 0.50
 ```
 
 For the single-tag version, replace the folder name with the folder name
@@ -1728,24 +1894,35 @@ signal variation and become repeatedly detected by the same receiver.
 | `stationary_max_mean_abs_sigdif` | Maximum average signal variation allowed during the final daytime window |
 | `stationary_min_receiver_prop` | Minimum proportion of final-window detections that must occur on the main receiver |
 
-These settings were intentionally chosen to be conservative. For
-example:
+These settings were chosen to balance conservative stationary-tag
+screening with the ability to detect biologically meaningful stationary
+patterns. For example:
 
 - requiring most final-window signal differences to remain within
-  inactive thresholds (`0.95`) helps reduce false flags from birds still
-  moving normally
-- requiring detections to remain concentrated on one receiver (`0.80`)
-  helps distinguish stationary tags from birds moving among towers
-- requiring low average signal variation (`0.50 dB`) helps identify
-  unusually stable signal patterns
-- requiring at least `30` valid signal comparisons helps avoid unstable
-  results from sparse detections
+  inactive thresholds (`0.80`) helps reduce false flags from birds still
+  moving normally while still allowing some natural signal variability
+- requiring detections to remain mostly concentrated on one receiver
+  (`0.50`) helps distinguish potentially stationary tags from birds
+  regularly moving among towers
+- requiring relatively low average signal variation (`2.50 dB`) helps
+  identify unusually stable signal patterns without requiring
+  near-perfect signal stability
+- requiring at least `15` valid signal comparisons helps reduce unstable
+  results caused by sparse detections or limited late-window coverage
 
 These values can be adjusted depending on the study system, species
 behavior, receiver density, or desired level of screening strictness.
 More restrictive settings may reduce false positives but miss subtle
 stationary-tag patterns, whereas more relaxed settings may flag true
 activity.
+
+For tag deployments monitored primarily by a single receiver or by
+sparse receiver arrays where birds are unlikely to be picked up by
+multiple towers at a time, the receiver-concentration requirement
+(stationary_min_receiver_prop) will often be more informative at higher
+values (i.e. `90`) than those used here. In these systems, truly
+stationary tags are more likely to remain consistently associated with
+one receiver rather than systems with multiple receievers.
 
 ## Code structure
 
@@ -1788,7 +1965,7 @@ Important helper functions include:
 | `define_multi_receiver_sites()` | Defines receiver groups that should be treated as one site |
 | `filter_to_site_receivers()` | Retains the top receiver or grouped multi-receiver site |
 | `clean_and_select_strongest_detections()` | Aligns detections to the duty cycle and keeps strongest detections |
-| `check_missing_thresholds()` | Stops classification if receiver metadata or thresholds are missing |
+| `check_missing_thresholds()` | Identifies missing receiver metadata or threshold assignments before classification |
 | `attach_receiver_parameters()` | Adds thresholds, tower type, tolerance, and S2N cutoff |
 | `summarize_deployment_thresholds()` | Creates deployment-level median thresholds for plotting |
 | `screen_stationary_tag_deployment()` | Screens for possible stationary-tag / dropped-tag / mortality patterns |
@@ -1802,6 +1979,11 @@ Important helper functions include:
 ## What the script does
 
 ### Load one or more MotusTagID × mfgID datasets
+
+The single-tag Step 3 workflow automatically searches for the most
+recent matching Step 1 output folder using the folder date code. This
+allows users to rerun Step 1 with updated Motus downloads without
+manually changing the Step 3 folder path each time.
 
 The single-tag Step 3 script processes one tag folder at a time using
 `data_dir`.
@@ -1850,6 +2032,21 @@ receiver hardware or signal environments.
 These final thresholds are applied by receiver type, not by individual
 bird. This could be applied across species if duty cycles are the same.
 
+<div class="good">
+
+<strong>Important:</strong> A bird does not need to produce its own
+nighttime threshold estimate in Step 2 in order for activity to be
+classified in Step 3. Once receiver-type thresholds have been estimated
+for a given hardware configuration, those thresholds can be applied to
+other birds detected on the same receiver type, provided the detections
+meet the normal timing, signal-quality, and deployment-window
+requirements. <br><br> This allows activity to be estimated for birds
+with limited nighttime detections, shorter detection periods, or sparse
+local data, as long as appropriate receiver-type thresholds are
+available.
+
+</div>
+
 ### Resolve biological deployments
 
 The script filters bird metadata to the current `MotusTagID × mfgID` and
@@ -1863,10 +2060,18 @@ Each deployment is processed separately.
 
 ### Filter detections to deployment window
 
-For each deployment, detections are filtered to the time between
-`Date_tagged` and `Date_end`. If the same tag was redeployed, the script
-also prevents overlap by ending a deployment before the next deployment
-starts.
+For each deployment, detections are filtered to the deployment window
+beginning at the tagging date and tagging time
+(`Date_tagged + Time_tagged`) and ending at `Date_end`.
+
+Using `Time_tagged` helps prevent detections recorded before release or
+during handling immediately after tagging from being included in
+activity estimation. This is especially important for studies where tags
+may begin transmitting before the bird is fully released or behaving
+normally.
+
+If `Time_tagged` is unavailable, the workflow falls back to using the
+tagging date alone.
 
 ### Infer multi-receiver site membership
 
@@ -2433,6 +2638,38 @@ motus_database_dir <- "C:/MotusDownloads/Raw_Tower"
 
 before rerunning the script.
 
+### Existing `.rds` file mode troubleshooting
+
+If running:
+
+``` r
+run_mode <- "existing_rds"
+```
+
+and the script fails with:
+
+``` r
+Existing alltags RDS file was not found
+```
+
+check that:
+
+1.  the file path is correct
+2.  the file extension is `.rds`
+3.  the network drive is mounted and accessible
+4.  the user has permission to access the file
+5.  the path uses forward slashes (`/`) or double backslashes (`\\`)
+
+Example valid paths:
+
+``` r
+existing_alltags_rds <- "C:/Motus_Data/my_alltags_file.rds"
+```
+
+``` r
+existing_alltags_rds <- "C:\\Motus_Data\\my_alltags_file.rds"
+```
+
 ## Error: no matching bird metadata found
 
 Likely causes:
@@ -2466,6 +2703,18 @@ Likely causes:
 4.  Tower type naming differs between Step 2 and Step 3.
 5.  A receiver lacks enough nighttime detections to estimate a
     threshold.
+
+A common cause of missing thresholds is that a bird continued moving
+outside the focal study array after the intended study period ended. If
+detections occur at distant receivers that were not represented in the
+provided Tower_Metadata.csv file or were not included during threshold
+estimation, Step 3 may not be able to assign valid receiver-type
+thresholds.
+
+This is one reason why carefully defining Date_end in the bird metadata
+is strongly recommended. Restricting detections to the biologically
+relevant study period helps prevent unrelated migration or dispersal
+detections from causing downstream threshold-matching issues.
 
 ## Stationary-tag screen skipped
 
@@ -2582,16 +2831,30 @@ To adapt this workflow, update the following:
 ## Step 1
 
 ``` r
-use_example_data <- TRUE
+run_mode <- "example"
 
 source("Step1_Motus_to_Individual_Birds.R")
 ```
 
-For a full Motus project:
+For a full Motus project download:
 
 ``` r
-use_example_data <- FALSE
+run_mode <- "motus_download"
+
 projRecv_id <- 787
+state_label <- "IL"
+project_label <- "IL_WOTH"
+
+source("Step1_Motus_to_Individual_Birds.R")
+```
+
+For an existing flattened alltags `.rds` file:
+
+``` r
+run_mode <- "existing_rds"
+
+existing_alltags_rds <- "//path/to/your/alltags_file.rds"
+
 state_label <- "IL"
 project_label <- "IL_WOTH"
 
@@ -2617,7 +2880,7 @@ data_dir <- here(
   "YOUR_TAG_FOLDER_NAME"
 )
 
-source("Activity_Classification.R")
+source("Step3_Activity_Classification.R")
 ```
 
 ## Step 3B: all tag datasets

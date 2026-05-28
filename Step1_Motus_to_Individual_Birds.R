@@ -117,34 +117,62 @@ message("✅ Required packages successfully loaded.")
 # RUN MODE
 # ------------------------------------------------------------------------------
 
-# Set to TRUE to use an example .RDS dataset.
-# Set to FALSE to download and process a full Motus project.
-use_example_data <- TRUE
+# Choose ONE option:
+#
+# "example"        = load the included example .RDS dataset
+# "motus_download" = download/update a Motus project database and flatten alltags
+# "existing_rds"  = load an already-existing alltags-style .RDS file
+#
+run_mode <- "example"
 
-# Path to example dataset.
-# This example should be a Motus-style detection table that includes motusFilter.
+valid_run_modes <- c("example", "motus_download", "existing_rds")
+
+if (!run_mode %in% valid_run_modes) {
+  stop(
+    "run_mode must be one of: ",
+    paste(valid_run_modes, collapse = ", ")
+  )
+}
+
+# ------------------------------------------------------------------------------
+# EXAMPLE DATA SETTINGS
+# ------------------------------------------------------------------------------
+
 example_rds <- here(
   "Sample_Data", "Raw", "Raw_Tower", 
   "Example_Allerton_WOTH_052525_060225.RDS"
 )
 
 # ------------------------------------------------------------------------------
+# EXISTING RDS SETTINGS
+# ------------------------------------------------------------------------------
+
+# Use this when you already have a flattened Motus-style alltags .RDS file.
+existing_alltags_rds <- here(
+  "Sample_Data", "Raw", "Raw_Tower",
+  "your_existing_alltags_file.RDS"
+)
+
+# ------------------------------------------------------------------------------
 # MOTUS PROJECT SETTINGS
 # ------------------------------------------------------------------------------
 
-# Motus project/receiver ID to download.
-# Only used when use_example_data <- FALSE.
+# Only used when run_mode <- "motus_download"
 projRecv_id <- 787
 
+# ------------------------------------------------------------------------------
+# OUTPUT LABELS
+# ------------------------------------------------------------------------------
+
 # Short label used in output file names.
-# Examples: "IL", "MX", "MO", "Ontario", "Spring2025"
+# Examples: "IL", "MX", "NSWO", "Ontario", "Spring2025"
 state_label <- "IL"
 
 # Project label used when saving the full flattened alltags file.
 project_label <- "IL_WOTH"
 
-# If running the example dataset, use example-specific output labels.
-if (use_example_data) {
+# Optional automatic labels for example data
+if (run_mode == "example") {
   state_label <- "ExampleAllerton"
   project_label <- "Example_Allerton_June2025"
 }
@@ -159,29 +187,59 @@ download_id <- format(Sys.Date(), "%m%d%y")
 # FOLDER PATHS
 # ------------------------------------------------------------------------------
 
-# Folder where the downloaded .motus database will be stored.
-# Also where the full flattened alltags .RDS file will be saved.
+# Folder where the .motus database OR full alltags .RDS file is stored.
 motus_database_dir <- here("Sample_Data", "Raw", "Raw_Tower")
 
 # Folder where individual Motus-filtered tag files will be saved.
-filtered_indiv_dir <- here("Sample_Data","Interim", "Motus_Tower_Data_Filtered")
-
-# Optional: if using example data, save to a separate example output folder.
-if (use_example_data) {
-  filtered_indiv_dir <- here("Sample_Data", "Interim", "Motus_Tower_Data_Filtered")
-}
+filtered_indiv_dir <- here("Sample_Data", "Interim", "Motus_Tower_Data_Filtered")
 
 dir.create(motus_database_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(filtered_indiv_dir, recursive = TRUE, showWarnings = FALSE)
 
-# ---------------------------------------------------------------------------
-# MOTUS LOGIN / DOWNLOAD CHECK
-# ---------------------------------------------------------------------------
+# ==============================================================================
+# 3) Load Motus data
+# ==============================================================================
 
-if (!use_example_data) {
+if (run_mode == "example") {
+  
+  # ---------------------------------------------------------------------------
+  # OPTION A: Load example RDS
+  # ---------------------------------------------------------------------------
+  
+  message("📘 Loading example Motus dataset...")
+  
+  if (!file.exists(example_rds)) {
+    stop("Example RDS file was not found at: ", example_rds)
+  }
+  
+  df_alltags <- readRDS(example_rds)
+  
+  message("✅ Loaded example dataset: ", example_rds)
+  
+} else if (run_mode == "existing_rds") {
+  
+  # ---------------------------------------------------------------------------
+  # OPTION B: Load existing alltags-style RDS
+  # ---------------------------------------------------------------------------
+  
+  message("📘 Loading existing alltags-style RDS...")
+  
+  if (!file.exists(existing_alltags_rds)) {
+    stop("Existing alltags RDS file was not found at: ", existing_alltags_rds)
+  }
+  
+  df_alltags <- readRDS(existing_alltags_rds)
+  
+  message("✅ Loaded existing alltags dataset: ", existing_alltags_rds)
+  
+} else if (run_mode == "motus_download") {
+  
+  # ---------------------------------------------------------------------------
+  # OPTION C: Download/update Motus database and flatten alltags table
+  # ---------------------------------------------------------------------------
   
   message(
-    "\n🔐 Motus login required.\n",
+    "\n🔐 Motus login may be required.\n",
     "If prompted, enter your Motus username/email and password directly in the R console.\n"
   )
   
@@ -212,62 +270,7 @@ if (!use_example_data) {
       "Original error:\n",
       conditionMessage(e)
     )
-    
   })
-  
-  message("✅ Motus database ready.")
-}
-
-# ==============================================================================
-# 3) Load or download Motus data
-# ==============================================================================
-
-if (use_example_data) {
-  
-  # ---------------------------------------------------------------------------
-  # OPTION A: Load example RDS
-  # ---------------------------------------------------------------------------
-  
-  message("📘 Loading example Motus dataset...")
-  
-  if (!file.exists(example_rds)) {
-    stop("Example RDS file was not found at: ", example_rds)
-  }
-  
-  df_alltags <- readRDS(example_rds) %>%
-    mutate(
-      time = case_when(
-        "time" %in% names(.) ~ as_datetime(time),
-        "tsCorrected" %in% names(.) ~ as_datetime(tsCorrected),
-        "ts" %in% names(.) ~ as_datetime(ts),
-        TRUE ~ as_datetime(NA_real_)
-      ),
-      motusTagID = as.character(motusTagID),
-      mfgID = as.character(mfgID)
-    )
-  
-  message("✅ Loaded example dataset: ", example_rds)
-  
-  # Save a copy of the example alltags-style file for reproducibility.
-  alltags_rds <- file.path(
-    filtered_indiv_dir,
-    paste0(project_label, "_alltags_", download_id, ".RDS")
-  )
-  
-  saveRDS(df_alltags, alltags_rds)
-  
-  message("✅ Saved example alltags-style file: ", alltags_rds)
-  
-} else {
-  
-  # ---------------------------------------------------------------------------
-  # OPTION B: Load Motus database
-  # ---------------------------------------------------------------------------
-  
-  motus_file <- file.path(
-    motus_database_dir,
-    paste0("project-", projRecv_id, ".motus")
-  )
   
   if (!file.exists(motus_file)) {
     stop("Motus database was not found at: ", motus_file)
@@ -278,12 +281,7 @@ if (use_example_data) {
   con <- dbConnect(SQLite(), motus_file)
   
   df_alltags <- tbl(con, "alltags") %>%
-    collect() %>%
-    mutate(
-      time = as_datetime(ts),
-      motusTagID = as.character(motusTagID),
-      mfgID = as.character(mfgID)
-    )
+    collect()
   
   dbDisconnect(con)
   
@@ -291,15 +289,37 @@ if (use_example_data) {
     stop("The alltags table is empty.")
   }
   
-  alltags_rds <- file.path(
-    motus_database_dir,
-    paste0(project_label, "_alltags_", download_id, ".RDS")
-  )
-  
-  saveRDS(df_alltags, alltags_rds)
-  
-  message("✅ Saved flattened alltags file: ", alltags_rds)
+  message("✅ Motus database flattened.")
 }
+
+# ------------------------------------------------------------------------------
+# Standardize key columns after loading data from any source
+# ------------------------------------------------------------------------------
+
+df_alltags <- df_alltags %>%
+  mutate(
+    time = case_when(
+      "time" %in% names(.) ~ as_datetime(time),
+      "tsCorrected" %in% names(.) ~ as_datetime(tsCorrected),
+      "ts" %in% names(.) ~ as_datetime(ts),
+      TRUE ~ as_datetime(NA_real_)
+    ),
+    motusTagID = as.character(motusTagID),
+    mfgID = as.character(mfgID)
+  )
+
+# ------------------------------------------------------------------------------
+# Save alltags-style file for reproducibility
+# ------------------------------------------------------------------------------
+
+alltags_rds <- file.path(
+  motus_database_dir,
+  paste0(project_label, "_alltags_", download_id, ".RDS")
+)
+
+saveRDS(df_alltags, alltags_rds)
+
+message("✅ Saved alltags-style file: ", alltags_rds)
 
 # ==============================================================================
 # 4) Check required columns

@@ -127,7 +127,7 @@ sample_size_threshold <- 0.25
 min_required_samples <- (3600 / duty_cycle) * sample_size_threshold
 
 # Used for detection-time alignment and deduplication.
-time_rounding <- 0.3
+tolerance <- 0.3
 
 # ----------------------------------------------------------------------------
 # Stationary-tag / dropped-tag screening settings
@@ -456,18 +456,26 @@ get_bird_deployments <- function(Bird_metadata, MotusTagID_num, mfgID) {
       Date_tagged = as.Date(
         parse_date_time(Date_tagged, orders = c("ymd", "mdy"))
       ),
-      
       Date_end = as.Date(
         parse_date_time(Date_end, orders = c("ymd", "mdy"))
-      )
+      ),
+      Time_tagged = if ("Time_tagged" %in% names(.)) as.character(Time_tagged) else NA_character_
     ) %>%
     group_by(Band, Date_tagged) %>%
     summarise(
+      Time_tagged = first(na.omit(Time_tagged)),
       Date_end = if (all(is.na(Date_end))) NA_Date_
       else max(Date_end, na.rm = TRUE),
       Lat = first(Lat),
       Lon = first(Lon),
       .groups = "drop"
+    ) %>%
+    mutate(
+      Time_tagged = if_else(
+        is.na(Time_tagged) | Time_tagged == "",
+        "00:00:00",
+        Time_tagged
+      )
     ) %>%
     arrange(Date_tagged) %>%
     mutate(deploy_index = row_number())
@@ -507,13 +515,19 @@ get_deployment_end <- function(bird_deployments, bird_row, i, tz_local) {
 # ------------------------------------------------------------------------------
 
 filter_to_deployment_window <- function(data_raw, bird_row, deployment_end, tz_local) {
+  
+  deployment_start <- ymd_hms(
+    paste(bird_row$Date_tagged, bird_row$Time_tagged),
+    tz = tz_local
+  )
+  
   data_raw %>%
     mutate(
       ts_utc = as.POSIXct(tsCorrected, origin = "1970-01-01", tz = "UTC"),
       date_time_local = with_tz(ts_utc, tz_local)
     ) %>%
     filter(
-      date_time_local >= as.POSIXct(bird_row$Date_tagged, tz = tz_local),
+      date_time_local >= deployment_start,
       is.na(deployment_end) |
         date_time_local <= as.POSIXct(deployment_end, tz = tz_local)
     )
@@ -576,16 +590,16 @@ filter_to_site_receivers <- function(data, multi_receiver_sites) {
 }
 
 # ------------------------------------------------------------------------------
-# Helper: clean_and_deduplicate_detections()
+# Helper: clean_and_select_strongest_detections()
 #
 # Aligns detections to the expected duty cycle and keeps the strongest detection.
 #
-# First, duplicates are collapsed within receiver and duty-time.
+# First, detections are collapsed within receiver and duty-time.
 # Second, if multiple receivers detected the same expected detection, the strongest
 # signal is retained.
 # ------------------------------------------------------------------------------
 
-clean_and_deduplicate_detections <- function(data, duty_cycle) {
+clean_and_select_strongest_detections <- function(data, duty_cycle) {
   data %>%
     mutate(
       time_num = as.numeric(date_time_local),
@@ -647,6 +661,20 @@ attach_receiver_parameters <- function(data_clean, tower_long, tower_type_thresh
     tower_long = tower_long,
     tower_type_thresholds = tower_type_thresholds
   )
+  
+  missing_threshold_error <- tryCatch(
+    {
+      check_missing_thresholds(receiver_thresholds)
+      FALSE
+    },
+    error = function(e) {
+      message("  ⚠️ Skipping deployment because thresholds are missing:")
+      message("     ", conditionMessage(e))
+      TRUE
+    }
+  )
+  
+  if (missing_threshold_error) next
   
   data_clean %>%
     left_join(
@@ -716,10 +744,10 @@ screen_stationary_tag_deployment <- function(
     duty_cycle = 15,
     late_window_hours = 72,
     receiver_selection_hours = 24,
-    min_valid_late = 30,
-    min_prop_within = 0.95,
-    max_mean_abs_sigdif = 0.50,
-    min_receiver_prop = 0.80,
+    min_valid_late = 15,
+    min_prop_within = 0.80,
+    max_mean_abs_sigdif = 2.5,
+    min_receiver_prop = 0.50,
     Band,
     MotusTagID,
     mfgID
@@ -1366,7 +1394,7 @@ for (data_dir in dataset_folders) {
     # Clean and deduplicate detections.
     # -------------------------------------------------------------------------
     
-    data_clean <- clean_and_deduplicate_detections(
+    data_clean <- clean_and_select_strongest_detections(
       data = data,
       duty_cycle = duty_cycle
     )

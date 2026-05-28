@@ -12,7 +12,7 @@
 <meta name="author" content="Lauren Brunk" />
 
 
-<title>Telemetry Activity Pipeline</title>
+<title>Motus Telemetry Activity Pipeline</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -2838,9 +2838,9 @@ border-radius: 0px;
 
 
 
-<h1 class="title toc-ignore">Telemetry Activity Pipeline</h1>
+<h1 class="title toc-ignore">Motus Telemetry Activity Pipeline</h1>
 <h4 class="author">Lauren Brunk</h4>
-<h4 class="date">Last updated: May 27, 2026</h4>
+<h4 class="date">Last updated: May 28, 2026</h4>
 
 </div>
 
@@ -2895,7 +2895,7 @@ vertical-align: top;
 </style>
 <div id="quick-summary" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Quick summary</h1>
-<p>This README explains the <strong>Telemetry Activity
+<p>This README explains the <strong>Motus Telemetry Activity
 Pipeline</strong>, which converts Motus detection data into individual
 activity classifications and hourly activity summaries.</p>
 <p>The workflow was developed for <strong>Wood Thrush activity
@@ -2973,15 +2973,16 @@ options for Step 3:</p>
 <tr class="odd">
 <td>1</td>
 <td><code>Step1_Motus_to_Individual_Birds.R</code></td>
-<td>Load the included example dataset or download Motus data, apply the
-Motus filter, and save Motus-filtered files per
+<td>Load the included example dataset, load an existing alltags-style
+<code>.rds</code> file, or download Motus data; then apply the Motus
+filter and save Motus-filtered files per
 <code>MotusTagID × mfgID</code></td>
 <td>Individual tag <code>.rds</code> and <code>.csv</code> files</td>
 </tr>
 <tr class="even">
 <td>2</td>
 <td><code>Step2_Activity_Threshold_Calculation.R</code></td>
-<td>Estimate movement thresholds from inactivity baseline signal
+<td>Estimate inactivity thresholds from inactivity baseline signal
 variation</td>
 <td>Threshold summary tables, threshold <code>.rds</code> files, and
 diagnostic plots</td>
@@ -3006,32 +3007,8 @@ screening outputs, and plots</td>
 </table>
 </div>
 </div>
-<div id="opening-the-project-in-rstudio" class="section level1" number="2">
-<h1><span class="header-section-number">2</span> Opening the project in
-RStudio</h1>
-<p>Before running any scripts, open the repository using the included
-RStudio project file:</p>
-<pre class="text"><code>Telemetry_Activity_Pipeline.Rproj</code></pre>
-</div>
-<div id="reproducible-package-environment" class="section level1" number="3">
-<h1><span class="header-section-number">3</span> Reproducible package
-environment</h1>
-<p>This repository uses <code>renv</code> to help reproduce the package
-environment used during development.</p>
-<p>When Step 1 runs, it automatically attempts to:</p>
-<ol style="list-style-type: decimal">
-<li>Activate the project <code>renv</code> environment</li>
-<li>Restore package versions recorded in <code>renv.lock</code></li>
-<li>Install any still-missing packages</li>
-</ol>
-<p>For best reproducibility, open the repository using the included
-<code>.Rproj</code> file before running the workflow.</p>
-<p>If <code>renv</code> is not already installed on your computer,
-install it once using:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;renv&quot;</span>)</span></code></pre></div>
-</div>
-<div id="contact" class="section level1" number="4">
-<h1><span class="header-section-number">4</span> Contact</h1>
+<div id="contact" class="section level1" number="2">
+<h1><span class="header-section-number">2</span> Contact</h1>
 <p>For questions about the pipeline, assumptions, or adapting the code
 to another project, contact:</p>
 <table>
@@ -3060,6 +3037,30 @@ to another project, contact:</p>
 </tr>
 </tbody>
 </table>
+</div>
+<div id="opening-the-project-in-rstudio" class="section level1" number="3">
+<h1><span class="header-section-number">3</span> Opening the project in
+RStudio</h1>
+<p>Before running any scripts, open the repository using the included
+RStudio project file:</p>
+<pre class="text"><code>Telemetry_Activity_Pipeline.Rproj</code></pre>
+</div>
+<div id="reproducible-package-environment" class="section level1" number="4">
+<h1><span class="header-section-number">4</span> Reproducible package
+environment</h1>
+<p>This repository uses <code>renv</code> to help reproduce the package
+environment used during development.</p>
+<p>When Step 1 runs, it automatically attempts to:</p>
+<ol style="list-style-type: decimal">
+<li>Activate the project <code>renv</code> environment</li>
+<li>Restore package versions recorded in <code>renv.lock</code></li>
+<li>Install any still-missing packages</li>
+</ol>
+<p>For best reproducibility, open the repository using the included
+<code>.Rproj</code> file before running the workflow.</p>
+<p>If <code>renv</code> is not already installed on your computer,
+install it once using:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;renv&quot;</span>)</span></code></pre></div>
 </div>
 <div id="included-example-dataset" class="section level1" number="5">
 <h1><span class="header-section-number">5</span> Included example
@@ -3115,15 +3116,15 @@ test:</p>
 <li>Output generation</li>
 <li>Diagnostic plots</li>
 </ul>
-<p>The example dataset still follows the same general structure as a
-Motus <code>alltags</code> table, so the same Step 1 workflow can be
-used for both the example dataset and a full Motus project download.</p>
-<div class="warning">
-<p><strong>Important:</strong> The example dataset is not already
-filtered. Step 1 still applies the standard Motus filter using
-<code>motusFilter == 1</code>, which retains detections that passed the
-standard Motus filtering process.</p>
-</div>
+<p>The example dataset is a flattened version of the Motus alltags view.
+In a downloaded Motus project database, detections are stored in a
+.motus SQLite file made up of multiple linked tables. The alltags view
+combines tag detection records with commonly used tag, receiver,
+antenna, project, and species metadata into one convenient table. This
+pipeline uses that alltags-style format as the starting point for Step
+1, so the same workflow can be used whether users begin with the
+included example .rds file, an already-exported alltags .rds file, or a
+full Motus project download.</p>
 </div>
 <div id="what-this-pipeline-is-designed-to-do" class="section level1" number="6">
 <h1><span class="header-section-number">6</span> What this pipeline is
@@ -3132,7 +3133,8 @@ designed to do</h1>
 automated radiotelemetry detections. It does not directly observe or
 identify specific behaviors. Instead, it uses signal variation, receiver
 switching, antenna switching, and detection timing to infer whether a
-tagged bird was likely moving.</p>
+tagged bird was likely moving, and ultimately producing hourly activity
+rates.</p>
 <p>The pipeline was specifically designed to address several common
 problems in Motus telemetry data:</p>
 <ol style="list-style-type: decimal">
@@ -3163,37 +3165,29 @@ order</h1>
        ↓
 2. Step2_Activity_Threshold_Calculation.R
        ↓
-3A. Activity_Classification.R
+3A. Step3_Activity_Classification.R
        OR
 3B. Step3_LOOP_Activity_Classification.R</code></pre>
 <div class="good">
 <p><strong>Recommended for first-time users:</strong> Begin with the
-included example dataset by setting <code>use_example_data &lt;-
-TRUE</code> in Step 1. After the workflow runs successfully, users can
-switch to <code>use_example_data &lt;- FALSE</code> and apply the same
-scripts to their own Motus project. Use the single-tag Step 3 script
-first for testing, then use the looped Step 3 script for batch
-processing.</p>
+included example dataset by setting <code>run_mode &lt;-
+“example”</code> in Step 1. After the workflow runs successfully, users
+can switch to run_mode &lt;- “motus_download” or run_mode &lt;-
+“existing_rds” and apply the same scripts to their own Motus project.
+Use the single-tag Step 3 script first for testing, then use the looped
+Step 3 script for batch processing.</p>
 </div>
 </div>
 <div id="data-permissions-and-usage" class="section level1" number="8">
 <h1><span class="header-section-number">8</span> Data permissions and
 usage</h1>
-<p>The included example dataset is provided solely for demonstrating and
-testing the workflow contained in this repository.</p>
-<p>These example detections originate from the Illinois Wood Thrush
-Project and are intentionally limited in spatial and temporal scope.
-Users should not redistribute, republish, or reuse the example data
-outside the context of testing or learning the pipeline without
-permission from the original project investigators.</p>
-<p>Users applying this workflow to their own Motus projects are
-responsible for complying with all relevant Motus data-use agreements,
-project permissions, permitting requirements, and collaborator
-expectations.</p>
-<p>This repository distributes code and a small demonstration dataset
-only. Ownership and permissions associated with original Motus detection
-data remain with the respective project investigators and data
-contributors.</p>
+<p>The included example detections are provided only for demonstrating
+and testing this workflow. They originate from the Illinois Wood Thrush
+Project and should not be redistributed, republished, or reused outside
+this repository without permission from the project investigators.</p>
+<p>Users applying this pipeline to their own Motus projects are
+responsible for following relevant Motus data-use agreements, project
+permissions, permitting requirements, and collaborator expectations.</p>
 </div>
 <div id="key-concepts-and-definitions" class="section level1" number="9">
 <h1><span class="header-section-number">9</span> Key concepts and
@@ -3339,7 +3333,7 @@ type” + “_” + “System”).</p>
 <pre class="text"><code>Funcube_Sensorgnome
 RTL_Sensorgnome
 Funcube_CTT
-SigmaEight_SigmaEight (special case -- Sigma Eight does not have interchangable dongles)</code></pre>
+SigmaEight_SigmaEight (special case -- Sigma Eight does not have interchangeable dongles)</code></pre>
 </div>
 <div id="duty-cycle" class="section level2" number="9.10">
 <h2><span class="header-section-number">9.10</span> Duty cycle</h2>
@@ -3756,88 +3750,96 @@ data</h1>
 <div id="motus-detection-data" class="section level2" number="13.1">
 <h2><span class="header-section-number">13.1</span> Motus detection
 data</h2>
-<p>Step 1 can load Motus detection data in two ways.</p>
+<p>Step 1 supports three input modes.</p>
 <div id="option-a-included-example-dataset" class="section level3" number="13.1.1">
 <h3><span class="header-section-number">13.1.1</span> Option A: Included
 example dataset</h3>
 <p>For first-time users:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;example&quot;</span></span></code></pre></div>
 <p>This loads:</p>
 <pre class="text"><code>Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds</code></pre>
 <p>This file contains a small subset of individuals from the Illinois
 Wood Thrush Project Motus project 787 at the Allerton and Allerton South
 towers from May 25–June 2, 2025.</p>
+<hr />
 </div>
-<div id="option-b-full-motus-project-download" class="section level3" number="13.1.2">
-<h3><span class="header-section-number">13.1.2</span> Option B: Full
-Motus project download</h3>
-<p>For users applying the pipeline to their own Motus project:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span></code></pre></div>
-<p>The script then downloads data using:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" tabindex="-1"></a><span class="fu">tagme</span>(</span>
-<span id="cb26-2"><a href="#cb26-2" tabindex="-1"></a>  <span class="at">projRecv =</span> projRecv_id,</span>
-<span id="cb26-3"><a href="#cb26-3" tabindex="-1"></a>  <span class="at">dir =</span> motus_database_dir,</span>
-<span id="cb26-4"><a href="#cb26-4" tabindex="-1"></a>  <span class="at">new =</span> <span class="cn">TRUE</span></span>
-<span id="cb26-5"><a href="#cb26-5" tabindex="-1"></a>)</span></code></pre></div>
-<p>This creates a <code>.motus</code> SQLite database, which is then
-flattened into a regular R table.</p>
-<p>Important columns include:</p>
+<div id="option-b-existing-alltags-style-.rds-file" class="section level3" number="13.1.2">
+<h3><span class="header-section-number">13.1.2</span> Option B: Existing
+alltags-style <code>.rds</code> file</h3>
+<p>Users who already have a flattened Motus-style detection table can
+load it directly without downloading a <code>.motus</code> database.</p>
+<p>Example:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span>
+<span id="cb25-2"><a href="#cb25-2" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;//path/to/your/alltags_file.rds&quot;</span></span></code></pre></div>
+<p>This mode is useful when:</p>
+<ul>
+<li>sharing processed Motus detection tables among collaborators</li>
+<li>working from a network drive</li>
+<li>reusing previously flattened alltags files</li>
+<li>applying the pipeline to archived projects</li>
+<li>avoiding repeated Motus downloads</li>
+</ul>
+<p>The <code>.rds</code> file should contain a Motus-style detection
+table that includes at minimum:</p>
 <table>
 <thead>
 <tr class="header">
-<th>Column</th>
-<th>Description</th>
-<th>Used in</th>
+<th>Required column</th>
+<th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>ts</code></td>
-<td>Original Motus timestamp</td>
-<td>Step 1</td>
+<td><code>motusTagID</code></td>
+<td>Tag dataset ID</td>
 </tr>
 <tr class="even">
-<td><code>tsCorrected</code></td>
-<td>Corrected timestamp</td>
-<td>Steps 2 and 3</td>
+<td><code>mfgID</code></td>
+<td>Manufacturer ID</td>
 </tr>
 <tr class="odd">
 <td><code>motusFilter</code></td>
-<td>Motus filter flag</td>
-<td>Step 1</td>
-</tr>
-<tr class="even">
-<td><code>motusTagID</code></td>
-<td>Motus tag ID</td>
-<td>All steps</td>
-</tr>
-<tr class="odd">
-<td><code>mfgID</code></td>
-<td>Manufacturer ID</td>
-<td>All steps</td>
+<td>Standard Motus filter flag</td>
 </tr>
 <tr class="even">
 <td><code>sig</code></td>
 <td>Signal strength</td>
-<td>Steps 2 and 3</td>
 </tr>
 <tr class="odd">
 <td><code>noise</code></td>
 <td>Background noise</td>
-<td>Steps 2 and 3</td>
 </tr>
 <tr class="even">
 <td><code>recvDeployName</code></td>
 <td>Receiver name</td>
-<td>Steps 2 and 3</td>
-</tr>
-<tr class="odd">
-<td><code>port</code></td>
-<td>Antenna port</td>
-<td>Step 3</td>
 </tr>
 </tbody>
 </table>
+<p>Timestamp columns can be stored as:</p>
+<pre class="text"><code>time
+tsCorrected
+ts</code></pre>
+<p>The script automatically standardizes these during loading.</p>
+<hr />
+</div>
+<div id="option-c-full-motus-project-download" class="section level3" number="13.1.3">
+<h3><span class="header-section-number">13.1.3</span> Option C: Full
+Motus project download</h3>
+<p>For users downloading directly from Motus:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;motus_download&quot;</span></span></code></pre></div>
+<p>The script then downloads data using:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" tabindex="-1"></a><span class="fu">tagme</span>(</span>
+<span id="cb28-2"><a href="#cb28-2" tabindex="-1"></a>  <span class="at">projRecv =</span> projRecv_id,</span>
+<span id="cb28-3"><a href="#cb28-3" tabindex="-1"></a>  <span class="at">dir =</span> motus_database_dir,</span>
+<span id="cb28-4"><a href="#cb28-4" tabindex="-1"></a>  <span class="at">new =</span> create_new_db</span>
+<span id="cb28-5"><a href="#cb28-5" tabindex="-1"></a>)</span></code></pre></div>
+<p>This creates or updates a <code>.motus</code> SQLite database, which
+is then flattened into a standard R dataframe.</p>
+<p>If downloading a Motus project for the first time, the R console may
+prompt for Motus login credentials before the workflow continues.</p>
+<p>The login/download step occurs once before the individual-tag
+processing loop begins.</p>
 </div>
 </div>
 <div id="metadata-structure-notes" class="section level2" number="13.2">
@@ -3852,8 +3854,8 @@ not necessarily one unique tag or one unique bird across all years.</p>
 <code>Year × Band × deployment</code> combination should have its own
 row. This is important because a bird’s metadata can change among years
 or deployments. For example, the same banded bird may be recorded in a
-later year with a different age class, mass, condition score, tagging
-location, deployment period, or transmitter.</p>
+later year with a different age class, mass, condition score, deployment
+period, or transmitter.</p>
 <p>Similarly, the same <code>motusTagID × mfgID</code> can appear in
 multiple rows if a tag was redeployed on a different bird, in a
 different year, or during a different field season.</p>
@@ -3870,84 +3872,94 @@ bird.</p>
 columns</h3>
 <table>
 <colgroup>
-<col width="50%" />
-<col width="50%" />
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th>Column</th>
 <th>Description</th>
+<th>How the pipeline uses it</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>State</code></td>
 <td>State or broad study-region label</td>
+<td>Primarily retained for organization and interpretation</td>
 </tr>
 <tr class="even">
 <td><code>Site_tagged</code></td>
-<td>General site where the bird was tagged. Primarily retained for
-biological interpretation, deployment organization, and downstream
-analyses. This can be useful in systems with multiple nearby receivers
-associated with the same study site.</td>
+<td>General site where the bird was tagged</td>
+<td>Primarily retained for biological interpretation, deployment
+organization, and downstream analyses</td>
 </tr>
 <tr class="odd">
 <td><code>recvDeployName</code></td>
-<td>Closest Motus receiver/tower to the tagging location. Retained
-primarily for interpretation, metadata tracking, and downstream
-analyses</td>
+<td>Closest Motus receiver/tower to the tagging location</td>
+<td>Retained primarily for interpretation and metadata tracking</td>
 </tr>
 <tr class="even">
 <td><code>Year</code></td>
 <td>Field season or deployment year</td>
+<td>Primarily informational</td>
 </tr>
 <tr class="odd">
 <td><code>Lat</code>, <code>Lon</code></td>
-<td>Deployment location used for sunrise/sunset and diel timing
-calculations</td>
+<td>Deployment location</td>
+<td>Used for sunrise/sunset and diel timing calculations via
+<code>info_fast()</code></td>
 </tr>
 <tr class="even">
 <td><code>Date_tagged</code></td>
 <td>Date the tag was deployed on the bird</td>
+<td>Used to define the beginning of the deployment window</td>
 </tr>
 <tr class="odd">
 <td><code>Date_end</code></td>
-<td>Final date detections should be included for that deployment. This
-can include the date of known mortality/tag recovery, the last date the
-bird was considered local, or the date of departure from a site</td>
+<td>Final date detections should be included for that deployment</td>
+<td>Used to define the end of the deployment window</td>
 </tr>
 <tr class="even">
 <td><code>Time_tagged</code></td>
-<td>Time of tagging; retained for reference but not required for most
-pipeline steps</td>
+<td>Local time of transmitter deployment</td>
+<td>Used in Step 3 to prevent detections collected before tagging or
+immediately during handling/release from being included in activity
+estimation</td>
 </tr>
 <tr class="odd">
 <td><code>Species</code></td>
 <td>Species alpha/banding code</td>
+<td>Primarily informational</td>
 </tr>
 <tr class="even">
 <td><code>Band</code></td>
 <td>Bird band number used to identify the biological
-individual/deployment. Store without dashes or underscores</td>
+individual/deployment</td>
+<td>Used with deployment dates to resolve redeployments and separate
+true biological deployments</td>
 </tr>
 <tr class="odd">
 <td><code>motusTagID</code></td>
 <td>Unique Motus tag identifier</td>
+<td>Used with <code>mfgID</code> to identify tag datasets</td>
 </tr>
 <tr class="even">
 <td><code>mfgID</code></td>
 <td>Manufacturer tag identifier; not globally unique</td>
+<td>Used with <code>motusTagID</code> to identify tag datasets</td>
 </tr>
 <tr class="odd">
 <td><code>Age</code>, <code>Sex</code>, <code>How Aged</code></td>
-<td>Biological metadata retained for interpretation and downstream
-analyses</td>
+<td>Biological metadata</td>
+<td>Retained for interpretation and downstream analyses</td>
 </tr>
 <tr class="even">
 <td><code>Mass</code>, <code>Tarsus</code>, <code>Wing</code>,
 <code>Tail</code>, <code>Fat</code>, <code>Muscle</code></td>
-<td>Morphological and condition measurements retained for interpretation
-and downstream analyses</td>
+<td>Morphological and condition measurements</td>
+<td>Retained for interpretation and downstream analyses</td>
 </tr>
 </tbody>
 </table>
@@ -3976,16 +3988,38 @@ detections may be retained until the next deployment of that same tag or
 until the end of the detection record. This can unintentionally include
 detections from migration, dispersal, wintering areas, or unrelated
 receiver arrays outside the intended study period.</p>
-<p>In some cases, this may also cause the Step 3 workflow to fail if the
-bird is later detected by receivers that are not represented in the
-provided <code>Tower_Metadata.csv</code> file or do not have matching
-receiver-type thresholds. For this reason, missing <code>Date_end</code>
-values should be reviewed carefully, especially when analyses are
-intended to represent activity within a specific season, site, or
-receiver array.</p>
+<div class="warning">
+<p><strong>Important:</strong> If birds continue to be detected during
+migration on receivers that are not included in the provided
+<code>Tower_Metadata.csv</code> file, those detections will not have
+matching receiver metadata or receiver-type thresholds. As a result,
+activity from those receivers cannot be classified by the workflow
+unless the relevant receiver metadata and threshold information are
+added.</p>
 </div>
-<div id="tower-metadata-rows" class="section level3" number="13.2.4">
-<h3><span class="header-section-number">13.2.4</span> Tower metadata
+</div>
+<div id="why-time_tagged-matters" class="section level3" number="13.2.4">
+<h3><span class="header-section-number">13.2.4</span> Why
+<code>Time_tagged</code> matters</h3>
+<p><code>Time_tagged</code> is also strongly recommended because it
+defines when activity estimation should begin within the tagging
+day.</p>
+<p>Without <code>Time_tagged</code>, the workflow must assume the
+deployment began at the start of the tagging date
+(<code>00:00:00</code>). This can unintentionally retain detections
+collected before release or during handling immediately after
+tagging.</p>
+<p>Including <code>Time_tagged</code> helps ensure that activity
+estimates represent post-release behavior rather than capture or
+handling effects.</p>
+<div class="warning">
+<p><strong>Important:</strong> <code>Time_tagged</code> is especially
+important for users who turn their tags on days or weeks in advance of
+actual tag deployment.</p>
+</div>
+</div>
+<div id="tower-metadata-rows" class="section level3" number="13.2.5">
+<h3><span class="header-section-number">13.2.5</span> Tower metadata
 rows</h3>
 <p>Each row in the tower metadata represents one receiver deployment or
 receiver site. The pipeline uses this file to assign each detection to
@@ -3994,92 +4028,113 @@ the correct receiver hardware type.</p>
 configuration, and different receiver systems or dongle types can have
 different signal-strength behavior.</p>
 </div>
-<div id="tower-metadata-columns" class="section level3" number="13.2.5">
-<h3><span class="header-section-number">13.2.5</span> Tower metadata
+<div id="tower-metadata-columns" class="section level3" number="13.2.6">
+<h3><span class="header-section-number">13.2.6</span> Tower metadata
 columns</h3>
 <table>
 <colgroup>
-<col width="50%" />
-<col width="50%" />
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th>Column</th>
 <th>Description</th>
+<th>How the pipeline uses it</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>State</code></td>
 <td>State or broad study-region label</td>
+<td>Primarily retained for organization and interpretation</td>
 </tr>
 <tr class="even">
 <td><code>recvDeployName</code></td>
 <td>Receiver name; must match <code>recvDeployName</code> in the Motus
 detection data</td>
+<td>Required for matching detections to receiver metadata and
+thresholds</td>
 </tr>
 <tr class="odd">
 <td><code>Site</code></td>
 <td>Study site or receiver group</td>
+<td>Primarily retained for interpretation; can help define
+multi-receiver sites</td>
 </tr>
 <tr class="even">
 <td><code>recvDeployID</code></td>
 <td>Motus receiver deployment ID</td>
+<td>Retained mainly for metadata tracking</td>
 </tr>
 <tr class="odd">
 <td><code>Lat</code>, <code>Lon</code></td>
 <td>Receiver location</td>
+<td>Primarily retained for interpretation and mapping</td>
 </tr>
 <tr class="even">
 <td><code>County</code></td>
 <td>County where the receiver is located</td>
+<td>Retained for metadata and interpretation</td>
 </tr>
 <tr class="odd">
 <td><code>NumberOfAntennas</code></td>
 <td>Number of antennas at the receiver</td>
+<td>Primarily informational</td>
 </tr>
 <tr class="even">
 <td><code>Antenna_Numbers</code></td>
 <td>Antenna ports expected at that receiver</td>
+<td>Can assist with interpreting antenna-port behavior and
+diagnostics</td>
 </tr>
 <tr class="odd">
 <td><code>DongleType_1</code></td>
 <td>Dongle type during the first receiver era</td>
+<td>Used to define receiver/tower type and assign thresholds</td>
 </tr>
 <tr class="even">
 <td><code>DongleType_2</code></td>
 <td>Dongle type during the second receiver era, if hardware changed</td>
+<td>Used when constructing later receiver eras</td>
 </tr>
 <tr class="odd">
 <td><code>Antenna</code></td>
 <td>Antenna type or antenna notes</td>
+<td>Primarily informational</td>
 </tr>
 <tr class="even">
 <td><code>System1</code></td>
 <td>Receiver system during the first receiver era</td>
+<td>Used to define receiver/tower type and assign thresholds</td>
 </tr>
 <tr class="odd">
 <td><code>System2</code></td>
 <td>Receiver system during the second receiver era, if hardware
 changed</td>
+<td>Used when constructing later receiver eras</td>
 </tr>
 <tr class="even">
 <td><code>System1End</code></td>
 <td>Last date of the first receiver era</td>
+<td>Used to split receivers into hardware eras</td>
 </tr>
 <tr class="odd">
 <td><code>Dongle_notes</code></td>
 <td>Notes about dongles or hardware</td>
+<td>Informational</td>
 </tr>
 <tr class="even">
 <td><code>Notes</code></td>
 <td>Additional receiver notes</td>
+<td>Informational</td>
 </tr>
 </tbody>
 </table>
 </div>
-<div id="receiver-hardware-changes" class="section level3" number="13.2.6">
-<h3><span class="header-section-number">13.2.6</span> Receiver hardware
+<div id="receiver-hardware-changes" class="section level3" number="13.2.7">
+<h3><span class="header-section-number">13.2.7</span> Receiver hardware
 changes</h3>
 <p>If a receiver changed hardware during the study, the tower metadata
 should describe both hardware eras.</p>
@@ -4135,15 +4190,15 @@ and split Motus data</h1>
 <div id="purpose" class="section level2" number="14.2">
 <h2><span class="header-section-number">14.2</span> Purpose</h2>
 <p>Step 1 downloads Motus project data, flattens the <code>.motus</code>
-database into a regular R project, applies the standard Motus filter,
+database into a regular R dataframe, applies the standard Motus filter,
 and saves individual tag-level files. Essentially, this step prepares
 Motus detections for the rest of the workflow.</p>
-<p>It can run in two modes:</p>
+<p>It can run in three modes:</p>
 <table>
 <colgroup>
-<col width="17%" />
-<col width="36%" />
-<col width="45%" />
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -4155,17 +4210,22 @@ Motus detections for the rest of the workflow.</p>
 <tbody>
 <tr class="odd">
 <td>Example mode</td>
-<td><code>use_example_data &lt;- TRUE</code></td>
+<td><code>run_mode &lt;- &quot;example&quot;</code></td>
 <td>Loads the included example dataset</td>
 </tr>
 <tr class="even">
-<td>Download mode</td>
-<td><code>use_example_data &lt;- FALSE</code></td>
-<td>Downloads a full Motus project</td>
+<td>Existing RDS mode</td>
+<td><code>run_mode &lt;- &quot;existing_rds&quot;</code></td>
+<td>Loads an already-existing alltags-style <code>.rds</code> file</td>
+</tr>
+<tr class="odd">
+<td>Motus download mode</td>
+<td><code>run_mode &lt;- &quot;motus_download&quot;</code></td>
+<td>Downloads or updates a full Motus project</td>
 </tr>
 </tbody>
 </table>
-<p>After loading data, both modes follow the same workflow:</p>
+<p>After loading data, all modes follow the same workflow:</p>
 <ol style="list-style-type: decimal">
 <li>Check required columns</li>
 <li>Apply <code>motusFilter == 1</code> to retain detections that passed
@@ -4178,28 +4238,83 @@ dataset</li>
 <div id="main-settings-to-edit" class="section level2" number="14.3">
 <h2><span class="header-section-number">14.3</span> Main settings to
 edit</h2>
-<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
-<span id="cb29-2"><a href="#cb29-2" tabindex="-1"></a></span>
-<span id="cb29-3"><a href="#cb29-3" tabindex="-1"></a>example_rds <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb29-4"><a href="#cb29-4" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Raw_Tower&quot;</span>, </span>
-<span id="cb29-5"><a href="#cb29-5" tabindex="-1"></a>  <span class="st">&quot;Example_Allerton_WOTH_052525_060225.rds&quot;</span></span>
-<span id="cb29-6"><a href="#cb29-6" tabindex="-1"></a>)</span>
-<span id="cb29-7"><a href="#cb29-7" tabindex="-1"></a></span>
-<span id="cb29-8"><a href="#cb29-8" tabindex="-1"></a><span class="co"># OR</span></span>
-<span id="cb29-9"><a href="#cb29-9" tabindex="-1"></a></span>
-<span id="cb29-10"><a href="#cb29-10" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span>
-<span id="cb29-11"><a href="#cb29-11" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
-<span id="cb29-12"><a href="#cb29-12" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
-<span id="cb29-13"><a href="#cb29-13" tabindex="-1"></a></span>
-<span id="cb29-14"><a href="#cb29-14" tabindex="-1"></a>motus_database_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Raw_Tower&quot;</span>)</span>
-<span id="cb29-15"><a href="#cb29-15" tabindex="-1"></a></span>
-<span id="cb29-16"><a href="#cb29-16" tabindex="-1"></a>filtered_indiv_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb29-17"><a href="#cb29-17" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb29-18"><a href="#cb29-18" tabindex="-1"></a>)</span></code></pre></div>
+<div id="run-mode" class="section level3" number="14.3.1">
+<h3><span class="header-section-number">14.3.1</span> Run mode</h3>
+<p>Choose one:</p>
+<div id="example-mode" class="section level4" number="14.3.1.1">
+<h4><span class="header-section-number">14.3.1.1</span> Example
+mode</h4>
+<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;example&quot;</span></span></code></pre></div>
+<p>Loads the included example dataset packaged with the repository.</p>
+<hr />
+</div>
+<div id="existing-.rds-mode" class="section level4" number="14.3.1.2">
+<h4><span class="header-section-number">14.3.1.2</span> Existing
+<code>.rds</code> mode</h4>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span></code></pre></div>
+<p>Loads an already-existing flattened Motus-style <code>.rds</code>
+detection table.</p>
+<hr />
+</div>
+<div id="motus-download-mode" class="section level4" number="14.3.1.3">
+<h4><span class="header-section-number">14.3.1.3</span> Motus download
+mode</h4>
+<div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;motus_download&quot;</span></span></code></pre></div>
+<p>Downloads or updates a Motus project database and extracts the
+<code>alltags</code> table.</p>
+<hr />
+</div>
+</div>
+<div id="example-mode-settings" class="section level3" number="14.3.2">
+<h3><span class="header-section-number">14.3.2</span> Example mode
+settings</h3>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a>example_rds <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb34-2"><a href="#cb34-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>,</span>
+<span id="cb34-3"><a href="#cb34-3" tabindex="-1"></a>  <span class="st">&quot;Raw&quot;</span>,</span>
+<span id="cb34-4"><a href="#cb34-4" tabindex="-1"></a>  <span class="st">&quot;Raw_Tower&quot;</span>,</span>
+<span id="cb34-5"><a href="#cb34-5" tabindex="-1"></a>  <span class="st">&quot;Example_Allerton_WOTH_052525_060225.rds&quot;</span></span>
+<span id="cb34-6"><a href="#cb34-6" tabindex="-1"></a>)</span></code></pre></div>
+<hr />
+</div>
+<div id="existing-.rds-mode-settings" class="section level3" number="14.3.3">
+<h3><span class="header-section-number">14.3.3</span> Existing
+<code>.rds</code> mode settings</h3>
+<div class="sourceCode" id="cb35"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;//path/to/your/alltags_file.rds&quot;</span></span></code></pre></div>
+<hr />
+</div>
+<div id="motus-download-settings" class="section level3" number="14.3.4">
+<h3><span class="header-section-number">14.3.4</span> Motus download
+settings</h3>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span></code></pre></div>
+<hr />
+</div>
+<div id="shared-outputpath-settings" class="section level3" number="14.3.5">
+<h3><span class="header-section-number">14.3.5</span> Shared output/path
+settings</h3>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb37-2"><a href="#cb37-2" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
+<span id="cb37-4"><a href="#cb37-4" tabindex="-1"></a></span>
+<span id="cb37-5"><a href="#cb37-5" tabindex="-1"></a>motus_database_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb37-6"><a href="#cb37-6" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>,</span>
+<span id="cb37-7"><a href="#cb37-7" tabindex="-1"></a>  <span class="st">&quot;Raw&quot;</span>,</span>
+<span id="cb37-8"><a href="#cb37-8" tabindex="-1"></a>  <span class="st">&quot;Raw_Tower&quot;</span></span>
+<span id="cb37-9"><a href="#cb37-9" tabindex="-1"></a>)</span>
+<span id="cb37-10"><a href="#cb37-10" tabindex="-1"></a></span>
+<span id="cb37-11"><a href="#cb37-11" tabindex="-1"></a>filtered_indiv_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb37-12"><a href="#cb37-12" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>,</span>
+<span id="cb37-13"><a href="#cb37-13" tabindex="-1"></a>  <span class="st">&quot;Interim&quot;</span>,</span>
+<span id="cb37-14"><a href="#cb37-14" tabindex="-1"></a>  <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb37-15"><a href="#cb37-15" tabindex="-1"></a>)</span></code></pre></div>
+<hr />
+</div>
+<div id="setting-descriptions" class="section level3" number="14.3.6">
+<h3><span class="header-section-number">14.3.6</span> Setting
+descriptions</h3>
 <table>
 <colgroup>
-<col width="50%" />
-<col width="50%" />
+<col width="26%" />
+<col width="73%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -4209,56 +4324,59 @@ edit</h2>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>use_example_data</code></td>
-<td>Controls whether the script loads the included example dataset or
-downloads Motus data</td>
+<td><code>run_mode</code></td>
+<td>Controls how Step 1 loads Motus detections</td>
 </tr>
 <tr class="even">
 <td><code>example_rds</code></td>
-<td>Path to the included example <code>.rds</code> file</td>
+<td>Path to the included example dataset</td>
 </tr>
 <tr class="odd">
+<td><code>existing_alltags_rds</code></td>
+<td>Path to an already-existing flattened Motus-style <code>.rds</code>
+file</td>
+</tr>
+<tr class="even">
 <td><code>projRecv_id</code></td>
-<td>Motus project ID used when downloading data. This can be found on
-the Motus website under <code>Manage → Manage Projects</code>. The
-numeric project ID appears alongside the project name.</td>
+<td>Motus project ID used when downloading data. This can typically be
+found on the Motus website under your project page URL or in the project
+metadata.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>state_label</code></td>
-<td>Short location label used in output filenames; can be adjusted to
-match the study region or project naming scheme</td>
-</tr>
-<tr class="odd">
-<td><code>project_label</code></td>
-<td>Project label used when saving flattened <code>alltags</code>
-data</td>
+<td>Short label used in output filenames</td>
 </tr>
 <tr class="even">
-<td><code>motus_database_dir</code></td>
-<td>Folder for downloaded <code>.motus</code> files and flattened
-<code>alltags</code> files</td>
+<td><code>project_label</code></td>
+<td>Label used when saving flattened alltags files</td>
 </tr>
 <tr class="odd">
+<td><code>motus_database_dir</code></td>
+<td>Folder for <code>.motus</code> databases and flattened alltags
+files</td>
+</tr>
+<tr class="even">
 <td><code>filtered_indiv_dir</code></td>
-<td>Folder where individual Motus-filtered tag datasets are saved</td>
+<td>Folder where individual tag datasets are saved</td>
 </tr>
 </tbody>
 </table>
+</div>
 </div>
 <div id="running-step-1-with-the-example-dataset" class="section level2" number="14.4">
 <h2><span class="header-section-number">14.4</span> Running Step 1 with
 the example dataset</h2>
 <p>To use the included example data:</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;example&quot;</span></span></code></pre></div>
 <p>The script loads:</p>
 <pre class="text"><code>Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds</code></pre>
 <p>When example mode is used, the script automatically updates the
 output labels:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;ExampleAllerton&quot;</span></span>
-<span id="cb32-2"><a href="#cb32-2" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;Example_Allerton_June2025&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;ExampleAllerton&quot;</span></span>
+<span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;Example_Allerton_June2025&quot;</span></span></code></pre></div>
 <p>The script applies:</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a>df_filtered <span class="ot">&lt;-</span> df_alltags <span class="sc">%&gt;%</span></span>
-<span id="cb33-2"><a href="#cb33-2" tabindex="-1"></a>  <span class="fu">filter</span>(motusFilter <span class="sc">==</span> <span class="dv">1</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" tabindex="-1"></a>df_filtered <span class="ot">&lt;-</span> df_alltags <span class="sc">%&gt;%</span></span>
+<span id="cb41-2"><a href="#cb41-2" tabindex="-1"></a>  <span class="fu">filter</span>(motusFilter <span class="sc">==</span> <span class="dv">1</span>)</span></code></pre></div>
 <p>before saving one file per tag dataset.</p>
 <p>It also saves a reproducible copy of the example alltags-style
 file.</p>
@@ -4267,20 +4385,46 @@ file.</p>
 <h2><span class="header-section-number">14.5</span> Running Step 1 with
 a full Motus project</h2>
 <p>To download a real Motus project:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
-<span id="cb34-2"><a href="#cb34-2" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span> <span class="co">#Update with your Motus Project ID</span></span></code></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;motus_download&quot;</span></span>
+<span id="cb42-2"><a href="#cb42-2" tabindex="-1"></a></span>
+<span id="cb42-3"><a href="#cb42-3" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span> <span class="co"># Update with your Motus project ID</span></span>
+<span id="cb42-4"><a href="#cb42-4" tabindex="-1"></a></span>
+<span id="cb42-5"><a href="#cb42-5" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb42-6"><a href="#cb42-6" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
+<span id="cb42-7"><a href="#cb42-7" tabindex="-1"></a></span>
+<span id="cb42-8"><a href="#cb42-8" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
 <p>Then update the paths as needed.</p>
-<p>The script then runs:</p>
-<div class="sourceCode" id="cb35"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a><span class="fu">tagme</span>(</span>
-<span id="cb35-2"><a href="#cb35-2" tabindex="-1"></a>  <span class="at">projRecv =</span> projRecv_id,</span>
-<span id="cb35-3"><a href="#cb35-3" tabindex="-1"></a>  <span class="at">dir =</span> motus_database_dir,</span>
-<span id="cb35-4"><a href="#cb35-4" tabindex="-1"></a>  <span class="at">new =</span> <span class="cn">TRUE</span></span>
-<span id="cb35-5"><a href="#cb35-5" tabindex="-1"></a>)</span></code></pre></div>
-<p>which downloads the project <code>.motus</code> database and extracts
-the <code>alltags</code> table.</p>
+<p>If downloading a Motus project for the first time, the R console may
+prompt for Motus login credentials before the workflow continues.</p>
+<hr />
 </div>
-<div id="step-1-outputs" class="section level2" number="14.6">
-<h2><span class="header-section-number">14.6</span> Step 1 outputs</h2>
+<div id="running-step-1-with-an-existing-alltags-.rds-file" class="section level2" number="14.6">
+<h2><span class="header-section-number">14.6</span> Running Step 1 with
+an existing alltags <code>.rds</code> file</h2>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span>
+<span id="cb43-2"><a href="#cb43-2" tabindex="-1"></a></span>
+<span id="cb43-3"><a href="#cb43-3" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;//path/to/your/alltags_file.rds&quot;</span></span>
+<span id="cb43-4"><a href="#cb43-4" tabindex="-1"></a></span>
+<span id="cb43-5"><a href="#cb43-5" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb43-6"><a href="#cb43-6" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;WOTH&quot;</span></span>
+<span id="cb43-7"><a href="#cb43-7" tabindex="-1"></a></span>
+<span id="cb43-8"><a href="#cb43-8" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<p>Example:</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span>
+<span id="cb44-2"><a href="#cb44-2" tabindex="-1"></a></span>
+<span id="cb44-3"><a href="#cb44-3" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;//Desktop/Telemetry_Activity_Pipeline/raw/</span></span>
+<span id="cb44-4"><a href="#cb44-4" tabindex="-1"></a><span class="st">df_alltagsWOTH.rds&quot;</span></span>
+<span id="cb44-5"><a href="#cb44-5" tabindex="-1"></a></span>
+<span id="cb44-6"><a href="#cb44-6" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;WOTH&quot;</span></span>
+<span id="cb44-7"><a href="#cb44-7" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb44-8"><a href="#cb44-8" tabindex="-1"></a></span>
+<span id="cb44-9"><a href="#cb44-9" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<p>This mode allows users to run the workflow from an already-existing
+flattened Motus-style detection table without downloading or updating a
+<code>.motus</code> database.</p>
+</div>
+<div id="step-1-outputs" class="section level2" number="14.7">
+<h2><span class="header-section-number">14.7</span> Step 1 outputs</h2>
 <p>For each tag dataset, Step 1 saves:</p>
 <table>
 <colgroup>
@@ -4338,22 +4482,22 @@ are treated as potential activity.</p>
 <div id="main-settings-to-edit-1" class="section level2" number="15.3">
 <h2><span class="header-section-number">15.3</span> Main settings to
 edit</h2>
-<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a>duty_cycle <span class="ot">&lt;-</span> <span class="dv">15</span></span>
-<span id="cb39-2"><a href="#cb39-2" tabindex="-1"></a>min_consecutive_night_detections <span class="ot">&lt;-</span> <span class="dv">15</span></span>
-<span id="cb39-3"><a href="#cb39-3" tabindex="-1"></a>threshold_sd_multiplier <span class="ot">&lt;-</span> <span class="dv">2</span></span>
-<span id="cb39-4"><a href="#cb39-4" tabindex="-1"></a></span>
-<span id="cb39-5"><a href="#cb39-5" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
-<span id="cb39-6"><a href="#cb39-6" tabindex="-1"></a></span>
-<span id="cb39-7"><a href="#cb39-7" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
-<span id="cb39-8"><a href="#cb39-8" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" tabindex="-1"></a>duty_cycle <span class="ot">&lt;-</span> <span class="dv">15</span></span>
+<span id="cb48-2"><a href="#cb48-2" tabindex="-1"></a>min_consecutive_night_detections <span class="ot">&lt;-</span> <span class="dv">15</span></span>
+<span id="cb48-3"><a href="#cb48-3" tabindex="-1"></a>threshold_sd_multiplier <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb48-4"><a href="#cb48-4" tabindex="-1"></a></span>
+<span id="cb48-5"><a href="#cb48-5" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
+<span id="cb48-6"><a href="#cb48-6" tabindex="-1"></a></span>
+<span id="cb48-7"><a href="#cb48-7" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
+<span id="cb48-8"><a href="#cb48-8" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span></code></pre></div>
 <p>Receiver-specific timing tolerances and S2N cutoffs are defined in
 the Step 2 <code>parameter_lookup</code> table:</p>
-<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a>parameter_lookup <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tribble</span>(</span>
-<span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>  <span class="sc">~</span>DongleType,  <span class="sc">~</span>tolerance, <span class="sc">~</span>S2N_cutoff,</span>
-<span id="cb40-3"><a href="#cb40-3" tabindex="-1"></a>  <span class="st">&quot;Funcube&quot;</span>,             <span class="fl">0.3</span>,          <span class="dv">6</span>,</span>
-<span id="cb40-4"><a href="#cb40-4" tabindex="-1"></a>  <span class="st">&quot;RTL&quot;</span>,                 <span class="fl">0.3</span>,         <span class="dv">10</span>,</span>
-<span id="cb40-5"><a href="#cb40-5" tabindex="-1"></a>  <span class="st">&quot;SigmaEight&quot;</span>,          <span class="fl">0.3</span>,         <span class="dv">12</span></span>
-<span id="cb40-6"><a href="#cb40-6" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" tabindex="-1"></a>parameter_lookup <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tribble</span>(</span>
+<span id="cb49-2"><a href="#cb49-2" tabindex="-1"></a>  <span class="sc">~</span>DongleType,  <span class="sc">~</span>tolerance, <span class="sc">~</span>S2N_cutoff,</span>
+<span id="cb49-3"><a href="#cb49-3" tabindex="-1"></a>  <span class="st">&quot;Funcube&quot;</span>,             <span class="fl">0.3</span>,          <span class="dv">6</span>,</span>
+<span id="cb49-4"><a href="#cb49-4" tabindex="-1"></a>  <span class="st">&quot;RTL&quot;</span>,                 <span class="fl">0.3</span>,         <span class="dv">10</span>,</span>
+<span id="cb49-5"><a href="#cb49-5" tabindex="-1"></a>  <span class="st">&quot;SigmaEight&quot;</span>,          <span class="fl">0.3</span>,         <span class="dv">12</span></span>
+<span id="cb49-6"><a href="#cb49-6" tabindex="-1"></a>)</span></code></pre></div>
 <table>
 <colgroup>
 <col width="50%" />
@@ -4518,8 +4662,8 @@ filtered tag folders</h3>
 <h3><span class="header-section-number">15.5.2</span> Load metadata and
 create receiver eras</h3>
 <p>The script loads bird metadata and tower metadata. Bird metadata
-provides coordinates for diel classification. Tower metadata provides
-receiver system and dongle type.</p>
+provides coordinates for diel timing classification. Tower metadata
+provides receiver system and dongle type.</p>
 <p>Receivers are split into eras if the hardware or system changed. This
 avoids estimating one threshold across multiple hardware
 configurations.</p>
@@ -4532,9 +4676,9 @@ number of detections within a receiver era. Thresholds are estimated
 from the top receiver because it usually provides the most consistent
 and robust signal data.</p>
 </div>
-<div id="select-strongest-antenna" class="section level3" number="15.5.4">
+<div id="select-strongest-detection" class="section level3" number="15.5.4">
 <h3><span class="header-section-number">15.5.4</span> Select strongest
-antenna</h3>
+detection</h3>
 <p>Within short time windows, the script keeps the strongest detection
 across receivers and antennas. This removes repeated detections from the
 same expected duty cycle/burst interval.</p>
@@ -4562,10 +4706,10 @@ inactive periods.</p>
 <h3><span class="header-section-number">15.5.6</span> Calculate signal
 metrics</h3>
 <p>For valid consecutive detections, the script calculates:</p>
-<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" tabindex="-1"></a>S2N <span class="ot">=</span> sig <span class="sc">-</span> noise</span>
-<span id="cb44-2"><a href="#cb44-2" tabindex="-1"></a>sig_diff <span class="ot">=</span> sig <span class="sc">-</span> <span class="fu">lag</span>(sig)</span>
-<span id="cb44-3"><a href="#cb44-3" tabindex="-1"></a>sig_ratio <span class="ot">=</span> <span class="dv">10</span><span class="sc">^</span>(sig_diff <span class="sc">/</span> <span class="dv">10</span>)</span>
-<span id="cb44-4"><a href="#cb44-4" tabindex="-1"></a>ln_sig_ratio <span class="ot">=</span> <span class="fu">log</span>(sig_ratio)</span></code></pre></div>
+<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" tabindex="-1"></a>S2N <span class="ot">=</span> sig <span class="sc">-</span> noise</span>
+<span id="cb53-2"><a href="#cb53-2" tabindex="-1"></a>sig_diff <span class="ot">=</span> sig <span class="sc">-</span> <span class="fu">lag</span>(sig)</span>
+<span id="cb53-3"><a href="#cb53-3" tabindex="-1"></a>sig_ratio <span class="ot">=</span> <span class="dv">10</span><span class="sc">^</span>(sig_diff <span class="sc">/</span> <span class="dv">10</span>)</span>
+<span id="cb53-4"><a href="#cb53-4" tabindex="-1"></a>ln_sig_ratio <span class="ot">=</span> <span class="fu">log</span>(sig_ratio)</span></code></pre></div>
 <p>A signal difference is only considered valid when:</p>
 <ol style="list-style-type: decimal">
 <li>The time between detections is within the tolerance of the duty
@@ -4578,28 +4722,29 @@ cycle</li>
 <h3><span class="header-section-number">15.5.7</span> Estimate nighttime
 baseline</h3>
 <p>The script subsets to valid nighttime detections:</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" tabindex="-1"></a>night_baseline_data <span class="ot">&lt;-</span> era_threshold_data <span class="sc">%&gt;%</span></span>
-<span id="cb45-2"><a href="#cb45-2" tabindex="-1"></a>  <span class="fu">filter</span>(</span>
-<span id="cb45-3"><a href="#cb45-3" tabindex="-1"></a>    <span class="sc">!</span><span class="fu">is.na</span>(sig_ratio),</span>
-<span id="cb45-4"><a href="#cb45-4" tabindex="-1"></a>    timing <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;night_1&quot;</span>, <span class="st">&quot;night_2&quot;</span>)</span>
-<span id="cb45-5"><a href="#cb45-5" tabindex="-1"></a>  )</span></code></pre></div>
+<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" tabindex="-1"></a>night_baseline_data <span class="ot">&lt;-</span> era_threshold_data <span class="sc">%&gt;%</span></span>
+<span id="cb54-2"><a href="#cb54-2" tabindex="-1"></a>  <span class="fu">filter</span>(</span>
+<span id="cb54-3"><a href="#cb54-3" tabindex="-1"></a>    <span class="sc">!</span><span class="fu">is.na</span>(sig_ratio),</span>
+<span id="cb54-4"><a href="#cb54-4" tabindex="-1"></a>    timing <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;night_1&quot;</span>, <span class="st">&quot;night_2&quot;</span>)</span>
+<span id="cb54-5"><a href="#cb54-5" tabindex="-1"></a>  )</span></code></pre></div>
 <p>It then requires at least
 <code>min_consecutive_night_detections</code> consecutive nighttime
 detections occurring at approximately the duty-cycle interval within the
 tolerance. This requirement helps ensure that thresholds are estimated
-from sustained periods of stable detections rather than isolated
-nighttime detections, sparse sampling, or fragmented detection sequences
-caused by real movement or missed bursts.</p>
+from sustained periods of stable nighttime detection coverage rather
+than isolated detections or fragmented detection sequences caused by
+missed bursts, intermittent receiver coverage, or birds moving in and
+out of reliable detection range.</p>
 </div>
 <div id="calculate-proportional-thresholds" class="section level3" number="15.5.8">
 <h3><span class="header-section-number">15.5.8</span> Calculate
 proportional thresholds</h3>
 <p>Thresholds are calculated as:</p>
-<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" tabindex="-1"></a>median_ratio <span class="ot">&lt;-</span> <span class="fu">median</span>(night_baseline_data<span class="sc">$</span>sig_ratio, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb46-2"><a href="#cb46-2" tabindex="-1"></a>sigma_ln <span class="ot">&lt;-</span> <span class="fu">sd</span>(night_baseline_data<span class="sc">$</span>ln_sig_ratio, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb46-3"><a href="#cb46-3" tabindex="-1"></a></span>
-<span id="cb46-4"><a href="#cb46-4" tabindex="-1"></a>lower_ratio <span class="ot">&lt;-</span> median_ratio <span class="sc">*</span> <span class="fu">exp</span>(<span class="sc">-</span>threshold_sd_multiplier <span class="sc">*</span> sigma_ln)</span>
-<span id="cb46-5"><a href="#cb46-5" tabindex="-1"></a>upper_ratio <span class="ot">&lt;-</span> median_ratio <span class="sc">*</span> <span class="fu">exp</span>( threshold_sd_multiplier <span class="sc">*</span> sigma_ln)</span></code></pre></div>
+<div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" tabindex="-1"></a>median_ratio <span class="ot">&lt;-</span> <span class="fu">median</span>(night_baseline_data<span class="sc">$</span>sig_ratio, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb55-2"><a href="#cb55-2" tabindex="-1"></a>sigma_ln <span class="ot">&lt;-</span> <span class="fu">sd</span>(night_baseline_data<span class="sc">$</span>ln_sig_ratio, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb55-3"><a href="#cb55-3" tabindex="-1"></a></span>
+<span id="cb55-4"><a href="#cb55-4" tabindex="-1"></a>lower_ratio <span class="ot">&lt;-</span> median_ratio <span class="sc">*</span> <span class="fu">exp</span>(<span class="sc">-</span>threshold_sd_multiplier <span class="sc">*</span> sigma_ln)</span>
+<span id="cb55-5"><a href="#cb55-5" tabindex="-1"></a>upper_ratio <span class="ot">&lt;-</span> median_ratio <span class="sc">*</span> <span class="fu">exp</span>( threshold_sd_multiplier <span class="sc">*</span> sigma_ln)</span></code></pre></div>
 <p>This defines the expected range of inactive signal variation around a
 robust center. The median reduces the influence of outliers, while the
 standard deviation of <code>ln_sig_ratio</code> captures the spread of
@@ -4609,8 +4754,8 @@ envelope is; here, <code>threshold_sd_multiplier = 2</code> creates an
 approximate 95% threshold envelope around the inactive baseline under a
 roughly normal distribution. This can be changed by the user.</p>
 <p>Equivalent dB thresholds are also saved:</p>
-<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" tabindex="-1"></a>lower_db <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="sc">*</span> <span class="fu">log10</span>(lower_ratio)</span>
-<span id="cb47-2"><a href="#cb47-2" tabindex="-1"></a>upper_db <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="sc">*</span> <span class="fu">log10</span>(upper_ratio)</span></code></pre></div>
+<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" tabindex="-1"></a>lower_db <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="sc">*</span> <span class="fu">log10</span>(lower_ratio)</span>
+<span id="cb56-2"><a href="#cb56-2" tabindex="-1"></a>upper_db <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="sc">*</span> <span class="fu">log10</span>(upper_ratio)</span></code></pre></div>
 </div>
 <div id="apply-preliminary-activity-classification" class="section level3" number="15.5.9">
 <h3><span class="header-section-number">15.5.9</span> Apply preliminary
@@ -4671,7 +4816,8 @@ for each bird × receiver era</td>
 <td><code>threshold_hist_plots/</code></td>
 <td>Diagnostic histograms of signal differences with threshold lines,
 including both individual bird-era plots and combined plots grouped by
-receiver/tower type</td>
+receiver/tower type (thresholds grouped by tower type are what are
+ultimately used in activity classification)</td>
 </tr>
 </tbody>
 </table>
@@ -4682,7 +4828,7 @@ receiver/tower type</td>
 activity and summarize detections</h1>
 <div id="script-options" class="section level2" number="16.1">
 <h2><span class="header-section-number">16.1</span> Script options</h2>
-<pre class="text"><code>Activity_Classification.R
+<pre class="text"><code>Step3_Activity_Classification.R
 Step3_LOOP_Activity_Classification.R</code></pre>
 </div>
 <div id="purpose-2" class="section level2" number="16.2">
@@ -4709,7 +4855,7 @@ dropped-tag / mortality screen.</p>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>Activity_Classification.R</code></td>
+<td><code>Step3_Activity_Classification.R</code></td>
 <td>Testing or processing one tag dataset at a time</td>
 <td>One <code>data_dir</code></td>
 </tr>
@@ -4724,49 +4870,49 @@ dropped-tag / mortality screen.</p>
 <div id="main-settings-to-edit-2" class="section level2" number="16.3">
 <h2><span class="header-section-number">16.3</span> Main settings to
 edit</h2>
-<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" tabindex="-1"></a>duty_cycle <span class="ot">&lt;-</span> <span class="dv">15</span></span>
-<span id="cb50-2"><a href="#cb50-2" tabindex="-1"></a>sample_size_threshold <span class="ot">&lt;-</span> <span class="fl">0.25</span></span>
-<span id="cb50-3"><a href="#cb50-3" tabindex="-1"></a>min_required_samples <span class="ot">&lt;-</span> (<span class="dv">3600</span> <span class="sc">/</span> duty_cycle) <span class="sc">*</span> sample_size_threshold</span>
-<span id="cb50-4"><a href="#cb50-4" tabindex="-1"></a></span>
-<span id="cb50-5"><a href="#cb50-5" tabindex="-1"></a>run_stationary_tag_screen <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
-<span id="cb50-6"><a href="#cb50-6" tabindex="-1"></a></span>
-<span id="cb50-7"><a href="#cb50-7" tabindex="-1"></a>stationary_late_window_hours <span class="ot">&lt;-</span> <span class="dv">72</span></span>
-<span id="cb50-8"><a href="#cb50-8" tabindex="-1"></a>stationary_receiver_selection_hours <span class="ot">&lt;-</span> <span class="dv">24</span></span>
-<span id="cb50-9"><a href="#cb50-9" tabindex="-1"></a>stationary_min_valid_late <span class="ot">&lt;-</span> <span class="dv">30</span></span>
-<span id="cb50-10"><a href="#cb50-10" tabindex="-1"></a>stationary_min_prop_within <span class="ot">&lt;-</span> <span class="fl">0.95</span></span>
-<span id="cb50-11"><a href="#cb50-11" tabindex="-1"></a>stationary_max_mean_abs_sigdif <span class="ot">&lt;-</span> <span class="fl">0.50</span></span>
-<span id="cb50-12"><a href="#cb50-12" tabindex="-1"></a>stationary_min_receiver_prop <span class="ot">&lt;-</span> <span class="fl">0.80</span></span></code></pre></div>
+<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" tabindex="-1"></a>duty_cycle <span class="ot">&lt;-</span> <span class="dv">15</span></span>
+<span id="cb59-2"><a href="#cb59-2" tabindex="-1"></a>sample_size_threshold <span class="ot">&lt;-</span> <span class="fl">0.25</span></span>
+<span id="cb59-3"><a href="#cb59-3" tabindex="-1"></a>min_required_samples <span class="ot">&lt;-</span> (<span class="dv">3600</span> <span class="sc">/</span> duty_cycle) <span class="sc">*</span> sample_size_threshold</span>
+<span id="cb59-4"><a href="#cb59-4" tabindex="-1"></a></span>
+<span id="cb59-5"><a href="#cb59-5" tabindex="-1"></a>run_stationary_tag_screen <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb59-6"><a href="#cb59-6" tabindex="-1"></a></span>
+<span id="cb59-7"><a href="#cb59-7" tabindex="-1"></a>stationary_late_window_hours <span class="ot">&lt;-</span> <span class="dv">72</span></span>
+<span id="cb59-8"><a href="#cb59-8" tabindex="-1"></a>stationary_receiver_selection_hours <span class="ot">&lt;-</span> <span class="dv">24</span></span>
+<span id="cb59-9"><a href="#cb59-9" tabindex="-1"></a>stationary_min_valid_late <span class="ot">&lt;-</span> <span class="dv">15</span></span>
+<span id="cb59-10"><a href="#cb59-10" tabindex="-1"></a>stationary_min_prop_within <span class="ot">&lt;-</span> <span class="fl">0.80</span></span>
+<span id="cb59-11"><a href="#cb59-11" tabindex="-1"></a>stationary_max_mean_abs_sigdif <span class="ot">&lt;-</span> <span class="fl">2.5</span></span>
+<span id="cb59-12"><a href="#cb59-12" tabindex="-1"></a>stationary_min_receiver_prop <span class="ot">&lt;-</span> <span class="fl">0.50</span></span></code></pre></div>
 <p>For the single-tag version, replace the folder name with the folder
 name of the bird you want to run:</p>
-<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb51-2"><a href="#cb51-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb51-3"><a href="#cb51-3" tabindex="-1"></a>)</span>
-<span id="cb51-4"><a href="#cb51-4" tabindex="-1"></a></span>
-<span id="cb51-5"><a href="#cb51-5" tabindex="-1"></a>target_MotusTagID <span class="ot">&lt;-</span> <span class="st">&quot;84746&quot;</span></span>
-<span id="cb51-6"><a href="#cb51-6" tabindex="-1"></a>target_mfgID <span class="ot">&lt;-</span> <span class="st">&quot;160&quot;</span></span>
-<span id="cb51-7"><a href="#cb51-7" tabindex="-1"></a>target_state <span class="ot">&lt;-</span> <span class="st">&quot;ExampleAllerton&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb60-2"><a href="#cb60-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb60-3"><a href="#cb60-3" tabindex="-1"></a>)</span>
+<span id="cb60-4"><a href="#cb60-4" tabindex="-1"></a></span>
+<span id="cb60-5"><a href="#cb60-5" tabindex="-1"></a>target_MotusTagID <span class="ot">&lt;-</span> <span class="st">&quot;84746&quot;</span></span>
+<span id="cb60-6"><a href="#cb60-6" tabindex="-1"></a>target_mfgID <span class="ot">&lt;-</span> <span class="st">&quot;160&quot;</span></span>
+<span id="cb60-7"><a href="#cb60-7" tabindex="-1"></a>target_state <span class="ot">&lt;-</span> <span class="st">&quot;ExampleAllerton&quot;</span></span></code></pre></div>
 <p>The single-tag Step 3 script searches <code>data_parent_dir</code>
 for folders matching the requested <code>target_MotusTagID</code>,
 <code>target_mfgID</code>, and <code>target_state</code>, then
 automatically selects the most recent <code>download_id</code>.</p>
 <p>For the looped version:</p>
-<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb52-2"><a href="#cb52-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb52-3"><a href="#cb52-3" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb61-2"><a href="#cb61-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb61-3"><a href="#cb61-3" tabindex="-1"></a>)</span></code></pre></div>
 <p>Shared metadata and threshold paths:</p>
-<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb53-2"><a href="#cb53-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span></span>
-<span id="cb53-3"><a href="#cb53-3" tabindex="-1"></a>)</span>
-<span id="cb53-4"><a href="#cb53-4" tabindex="-1"></a></span>
-<span id="cb53-5"><a href="#cb53-5" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb53-6"><a href="#cb53-6" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span></span>
-<span id="cb53-7"><a href="#cb53-7" tabindex="-1"></a>)</span>
-<span id="cb53-8"><a href="#cb53-8" tabindex="-1"></a></span>
-<span id="cb53-9"><a href="#cb53-9" tabindex="-1"></a>threshold_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb53-10"><a href="#cb53-10" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb53-11"><a href="#cb53-11" tabindex="-1"></a>)</span>
-<span id="cb53-12"><a href="#cb53-12" tabindex="-1"></a></span>
-<span id="cb53-13"><a href="#cb53-13" tabindex="-1"></a>threshold_file_pattern <span class="ot">&lt;-</span> <span class="st">&quot;all_birds_thresholds_summary.*</span><span class="sc">\\</span><span class="st">.csv$&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb62-2"><a href="#cb62-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span></span>
+<span id="cb62-3"><a href="#cb62-3" tabindex="-1"></a>)</span>
+<span id="cb62-4"><a href="#cb62-4" tabindex="-1"></a></span>
+<span id="cb62-5"><a href="#cb62-5" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb62-6"><a href="#cb62-6" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span></span>
+<span id="cb62-7"><a href="#cb62-7" tabindex="-1"></a>)</span>
+<span id="cb62-8"><a href="#cb62-8" tabindex="-1"></a></span>
+<span id="cb62-9"><a href="#cb62-9" tabindex="-1"></a>threshold_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb62-10"><a href="#cb62-10" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb62-11"><a href="#cb62-11" tabindex="-1"></a>)</span>
+<span id="cb62-12"><a href="#cb62-12" tabindex="-1"></a></span>
+<span id="cb62-13"><a href="#cb62-13" tabindex="-1"></a>threshold_file_pattern <span class="ot">&lt;-</span> <span class="st">&quot;all_birds_thresholds_summary.*</span><span class="sc">\\</span><span class="st">.csv$&quot;</span></span></code></pre></div>
 <table>
 <colgroup>
 <col width="26%" />
@@ -4863,25 +5009,36 @@ main receiver</td>
 </tr>
 </tbody>
 </table>
-<p>These settings were intentionally chosen to be conservative. For
-example:</p>
+<p>These settings were chosen to balance conservative stationary-tag
+screening with the ability to detect biologically meaningful stationary
+patterns. For example:</p>
 <ul>
 <li>requiring most final-window signal differences to remain within
-inactive thresholds (<code>0.95</code>) helps reduce false flags from
-birds still moving normally</li>
-<li>requiring detections to remain concentrated on one receiver
-(<code>0.80</code>) helps distinguish stationary tags from birds moving
-among towers</li>
-<li>requiring low average signal variation (<code>0.50 dB</code>) helps
-identify unusually stable signal patterns</li>
-<li>requiring at least <code>30</code> valid signal comparisons helps
-avoid unstable results from sparse detections</li>
+inactive thresholds (<code>0.80</code>) helps reduce false flags from
+birds still moving normally while still allowing some natural signal
+variability</li>
+<li>requiring detections to remain mostly concentrated on one receiver
+(<code>0.50</code>) helps distinguish potentially stationary tags from
+birds regularly moving among towers</li>
+<li>requiring relatively low average signal variation
+(<code>2.50 dB</code>) helps identify unusually stable signal patterns
+without requiring near-perfect signal stability</li>
+<li>requiring at least <code>15</code> valid signal comparisons helps
+reduce unstable results caused by sparse detections or limited
+late-window coverage</li>
 </ul>
 <p>These values can be adjusted depending on the study system, species
 behavior, receiver density, or desired level of screening strictness.
 More restrictive settings may reduce false positives but miss subtle
 stationary-tag patterns, whereas more relaxed settings may flag true
 activity.</p>
+<p>For tag deployments monitored primarily by a single receiver or by
+sparse receiver arrays where birds are unlikely to be picked up by
+multiple towers at a time, the receiver-concentration requirement
+(stationary_min_receiver_prop) will often be more informative at higher
+values (i.e. <code>90</code>) than those used here. In these systems,
+truly stationary tags are more likely to remain consistently associated
+with one receiver rather than systems with multiple receievers.</p>
 </div>
 <div id="code-structure-1" class="section level2" number="16.4">
 <h2><span class="header-section-number">16.4</span> Code structure</h2>
@@ -4982,8 +5139,8 @@ detections</td>
 </tr>
 <tr class="even">
 <td><code>check_missing_thresholds()</code></td>
-<td>Stops classification if receiver metadata or thresholds are
-missing</td>
+<td>Identifies missing receiver metadata or threshold assignments before
+classification</td>
 </tr>
 <tr class="odd">
 <td><code>attach_receiver_parameters()</code></td>
@@ -5032,6 +5189,10 @@ does</h2>
 <div id="load-one-or-more-motustagid-mfgid-datasets" class="section level3" number="16.5.1">
 <h3><span class="header-section-number">16.5.1</span> Load one or more
 MotusTagID × mfgID datasets</h3>
+<p>The single-tag Step 3 workflow automatically searches for the most
+recent matching Step 1 output folder using the folder date code. This
+allows users to rerun Step 1 with updated Motus downloads without
+manually changing the Step 3 folder path each time.</p>
 <p>The single-tag Step 3 script processes one tag folder at a time using
 <code>data_dir</code>.</p>
 <p>The looped Step 3 script searches <code>data_parent_dir</code> for
@@ -5074,6 +5235,18 @@ receiver hardware or signal environments.</p>
 <p>These final thresholds are applied by receiver type, not by
 individual bird. This could be applied across species if duty cycles are
 the same.</p>
+<div class="good">
+<p><strong>Important:</strong> A bird does not need to produce its own
+nighttime threshold estimate in Step 2 in order for activity to be
+classified in Step 3. Once receiver-type thresholds have been estimated
+for a given hardware configuration, those thresholds can be applied to
+other birds detected on the same receiver type, provided the detections
+meet the normal timing, signal-quality, and deployment-window
+requirements. <br><br> This allows activity to be estimated for birds
+with limited nighttime detections, shorter detection periods, or sparse
+local data, as long as appropriate receiver-type thresholds are
+available.</p>
+</div>
 </div>
 <div id="resolve-biological-deployments" class="section level3" number="16.5.4">
 <h3><span class="header-section-number">16.5.4</span> Resolve biological
@@ -5087,10 +5260,17 @@ based on:</p>
 <div id="filter-detections-to-deployment-window" class="section level3" number="16.5.5">
 <h3><span class="header-section-number">16.5.5</span> Filter detections
 to deployment window</h3>
-<p>For each deployment, detections are filtered to the time between
-<code>Date_tagged</code> and <code>Date_end</code>. If the same tag was
-redeployed, the script also prevents overlap by ending a deployment
-before the next deployment starts.</p>
+<p>For each deployment, detections are filtered to the deployment window
+beginning at the tagging date and tagging time
+(<code>Date_tagged + Time_tagged</code>) and ending at
+<code>Date_end</code>.</p>
+<p>Using <code>Time_tagged</code> helps prevent detections recorded
+before release or during handling immediately after tagging from being
+included in activity estimation. This is especially important for
+studies where tags may begin transmitting before the bird is fully
+released or behaving normally.</p>
+<p>If <code>Time_tagged</code> is unavailable, the workflow falls back
+to using the tagging date alone.</p>
 </div>
 <div id="infer-multi-receiver-site-membership" class="section level3" number="16.5.6">
 <h3><span class="header-section-number">16.5.6</span> Infer
@@ -5253,12 +5433,12 @@ bounds</li>
 here: <code>classify_activity()</code></h4>
 <p><code>classify_activity()</code> is the core function that classifies
 biologically meaningful activity from cleaned Motus detections.</p>
-<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1" tabindex="-1"></a><span class="fu">classify_activity</span>(</span>
-<span id="cb57-2"><a href="#cb57-2" tabindex="-1"></a>  df,</span>
-<span id="cb57-3"><a href="#cb57-3" tabindex="-1"></a>  duty_cycle,</span>
-<span id="cb57-4"><a href="#cb57-4" tabindex="-1"></a>  lower_ratio,</span>
-<span id="cb57-5"><a href="#cb57-5" tabindex="-1"></a>  upper_ratio</span>
-<span id="cb57-6"><a href="#cb57-6" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb66"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" tabindex="-1"></a><span class="fu">classify_activity</span>(</span>
+<span id="cb66-2"><a href="#cb66-2" tabindex="-1"></a>  df,</span>
+<span id="cb66-3"><a href="#cb66-3" tabindex="-1"></a>  duty_cycle,</span>
+<span id="cb66-4"><a href="#cb66-4" tabindex="-1"></a>  lower_ratio,</span>
+<span id="cb66-5"><a href="#cb66-5" tabindex="-1"></a>  upper_ratio</span>
+<span id="cb66-6"><a href="#cb66-6" tabindex="-1"></a>)</span></code></pre></div>
 <p>The function expects a wide-format detection table where signal and
 noise values from different antenna ports are stored in separate
 columns, such as:</p>
@@ -5873,24 +6053,44 @@ prompt for your Motus username/email and password.</p>
 <li>Restart the R session</li>
 <li>Reload the <code>motus</code> package:</li>
 </ol>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a><span class="fu">library</span>(motus)</span></code></pre></div>
+<div class="sourceCode" id="cb69"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" tabindex="-1"></a><span class="fu">library</span>(motus)</span></code></pre></div>
 <ol start="4" style="list-style-type: decimal">
 <li>Rerun Step 1</li>
 </ol>
 <p>If downloading fails with:</p>
-<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a>Error<span class="sc">:</span> session variable <span class="st">&#39;userLogin&#39;</span> is undefined</span></code></pre></div>
+<div class="sourceCode" id="cb70"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" tabindex="-1"></a>Error<span class="sc">:</span> session variable <span class="st">&#39;userLogin&#39;</span> is undefined</span></code></pre></div>
 <p>the interactive login prompt was likely interrupted before
 credentials were entered completely. Restart the R session and rerun the
 script.</p>
 <p>If downloading fails with:</p>
-<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a>Error<span class="sc">:</span> Could not connect to database<span class="sc">:</span></span>
-<span id="cb62-2"><a href="#cb62-2" tabindex="-1"></a>unable to open database file</span></code></pre></div>
+<div class="sourceCode" id="cb71"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1" tabindex="-1"></a>Error<span class="sc">:</span> Could not connect to database<span class="sc">:</span></span>
+<span id="cb71-2"><a href="#cb71-2" tabindex="-1"></a>unable to open database file</span></code></pre></div>
 <p>the download directory may not be writable. This can sometimes occur
 with OneDrive folders, network drives, synced folders, or directories
 with restricted permissions.</p>
 <p>Try using a simple local folder such as:</p>
-<div class="sourceCode" id="cb63"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" tabindex="-1"></a>motus_database_dir <span class="ot">&lt;-</span> <span class="st">&quot;C:/MotusDownloads/Raw_Tower&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb72"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" tabindex="-1"></a>motus_database_dir <span class="ot">&lt;-</span> <span class="st">&quot;C:/MotusDownloads/Raw_Tower&quot;</span></span></code></pre></div>
 <p>before rerunning the script.</p>
+<div id="existing-.rds-file-mode-troubleshooting" class="section level3" number="20.1.1">
+<h3><span class="header-section-number">20.1.1</span> Existing
+<code>.rds</code> file mode troubleshooting</h3>
+<p>If running:</p>
+<div class="sourceCode" id="cb73"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span></code></pre></div>
+<p>and the script fails with:</p>
+<div class="sourceCode" id="cb74"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" tabindex="-1"></a>Existing alltags RDS file was not found</span></code></pre></div>
+<p>check that:</p>
+<ol style="list-style-type: decimal">
+<li>the file path is correct</li>
+<li>the file extension is <code>.rds</code></li>
+<li>the network drive is mounted and accessible</li>
+<li>the user has permission to access the file</li>
+<li>the path uses forward slashes (<code>/</code>) or double backslashes
+(<code>\\</code>)</li>
+</ol>
+<p>Example valid paths:</p>
+<div class="sourceCode" id="cb75"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;C:/Motus_Data/my_alltags_file.rds&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb76"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;C:</span><span class="sc">\\</span><span class="st">Motus_Data</span><span class="sc">\\</span><span class="st">my_alltags_file.rds&quot;</span></span></code></pre></div>
+</div>
 </div>
 <div id="error-no-matching-bird-metadata-found" class="section level2" number="20.2">
 <h2><span class="header-section-number">20.2</span> Error: no matching
@@ -5933,6 +6133,17 @@ actual threshold filenames.</li>
 <li>A receiver lacks enough nighttime detections to estimate a
 threshold.</li>
 </ol>
+<p>A common cause of missing thresholds is that a bird continued moving
+outside the focal study array after the intended study period ended. If
+detections occur at distant receivers that were not represented in the
+provided Tower_Metadata.csv file or were not included during threshold
+estimation, Step 3 may not be able to assign valid receiver-type
+thresholds.</p>
+<p>This is one reason why carefully defining Date_end in the bird
+metadata is strongly recommended. Restricting detections to the
+biologically relevant study period helps prevent unrelated migration or
+dispersal detections from causing downstream threshold-matching
+issues.</p>
 </div>
 <div id="stationary-tag-screen-skipped" class="section level2" number="20.5">
 <h2><span class="header-section-number">20.5</span> Stationary-tag
@@ -6075,44 +6286,54 @@ requires different assumptions</li>
 example</h1>
 <div id="step-1" class="section level2" number="24.1">
 <h2><span class="header-section-number">24.1</span> Step 1</h2>
-<div class="sourceCode" id="cb64"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
-<span id="cb64-2"><a href="#cb64-2" tabindex="-1"></a></span>
-<span id="cb64-3"><a href="#cb64-3" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
-<p>For a full Motus project:</p>
-<div class="sourceCode" id="cb65"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" tabindex="-1"></a>use_example_data <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
-<span id="cb65-2"><a href="#cb65-2" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span>
-<span id="cb65-3"><a href="#cb65-3" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
-<span id="cb65-4"><a href="#cb65-4" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
-<span id="cb65-5"><a href="#cb65-5" tabindex="-1"></a></span>
-<span id="cb65-6"><a href="#cb65-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb77"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;example&quot;</span></span>
+<span id="cb77-2"><a href="#cb77-2" tabindex="-1"></a></span>
+<span id="cb77-3"><a href="#cb77-3" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<p>For a full Motus project download:</p>
+<div class="sourceCode" id="cb78"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;motus_download&quot;</span></span>
+<span id="cb78-2"><a href="#cb78-2" tabindex="-1"></a></span>
+<span id="cb78-3"><a href="#cb78-3" tabindex="-1"></a>projRecv_id <span class="ot">&lt;-</span> <span class="dv">787</span></span>
+<span id="cb78-4"><a href="#cb78-4" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb78-5"><a href="#cb78-5" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
+<span id="cb78-6"><a href="#cb78-6" tabindex="-1"></a></span>
+<span id="cb78-7"><a href="#cb78-7" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
+<p>For an existing flattened alltags <code>.rds</code> file:</p>
+<div class="sourceCode" id="cb79"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" tabindex="-1"></a>run_mode <span class="ot">&lt;-</span> <span class="st">&quot;existing_rds&quot;</span></span>
+<span id="cb79-2"><a href="#cb79-2" tabindex="-1"></a></span>
+<span id="cb79-3"><a href="#cb79-3" tabindex="-1"></a>existing_alltags_rds <span class="ot">&lt;-</span> <span class="st">&quot;//path/to/your/alltags_file.rds&quot;</span></span>
+<span id="cb79-4"><a href="#cb79-4" tabindex="-1"></a></span>
+<span id="cb79-5"><a href="#cb79-5" tabindex="-1"></a>state_label <span class="ot">&lt;-</span> <span class="st">&quot;IL&quot;</span></span>
+<span id="cb79-6"><a href="#cb79-6" tabindex="-1"></a>project_label <span class="ot">&lt;-</span> <span class="st">&quot;IL_WOTH&quot;</span></span>
+<span id="cb79-7"><a href="#cb79-7" tabindex="-1"></a></span>
+<span id="cb79-8"><a href="#cb79-8" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step1_Motus_to_Individual_Birds.R&quot;</span>)</span></code></pre></div>
 </div>
 <div id="step-2" class="section level2" number="24.2">
 <h2><span class="header-section-number">24.2</span> Step 2</h2>
-<div class="sourceCode" id="cb66"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
-<span id="cb66-2"><a href="#cb66-2" tabindex="-1"></a></span>
-<span id="cb66-3"><a href="#cb66-3" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
-<span id="cb66-4"><a href="#cb66-4" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span>
-<span id="cb66-5"><a href="#cb66-5" tabindex="-1"></a></span>
-<span id="cb66-6"><a href="#cb66-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step2_Activity_Threshold_Calculation.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb80"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" tabindex="-1"></a>root_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>)</span>
+<span id="cb80-2"><a href="#cb80-2" tabindex="-1"></a></span>
+<span id="cb80-3"><a href="#cb80-3" tabindex="-1"></a>bird_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;WOTH_IL_Metadata.csv&quot;</span>)</span>
+<span id="cb80-4"><a href="#cb80-4" tabindex="-1"></a>tower_metadata_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Raw&quot;</span>, <span class="st">&quot;Metadata&quot;</span>, <span class="st">&quot;Tower_Metadata.csv&quot;</span>)</span>
+<span id="cb80-5"><a href="#cb80-5" tabindex="-1"></a></span>
+<span id="cb80-6"><a href="#cb80-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step2_Activity_Threshold_Calculation.R&quot;</span>)</span></code></pre></div>
 </div>
 <div id="step-3a-one-tag-dataset" class="section level2" number="24.3">
 <h2><span class="header-section-number">24.3</span> Step 3A: one tag
 dataset</h2>
-<div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" tabindex="-1"></a>data_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb67-2"><a href="#cb67-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>,</span>
-<span id="cb67-3"><a href="#cb67-3" tabindex="-1"></a>  <span class="st">&quot;YOUR_TAG_FOLDER_NAME&quot;</span></span>
-<span id="cb67-4"><a href="#cb67-4" tabindex="-1"></a>)</span>
-<span id="cb67-5"><a href="#cb67-5" tabindex="-1"></a></span>
-<span id="cb67-6"><a href="#cb67-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Activity_Classification.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb81"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" tabindex="-1"></a>data_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb81-2"><a href="#cb81-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span>,</span>
+<span id="cb81-3"><a href="#cb81-3" tabindex="-1"></a>  <span class="st">&quot;YOUR_TAG_FOLDER_NAME&quot;</span></span>
+<span id="cb81-4"><a href="#cb81-4" tabindex="-1"></a>)</span>
+<span id="cb81-5"><a href="#cb81-5" tabindex="-1"></a></span>
+<span id="cb81-6"><a href="#cb81-6" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step3_Activity_Classification.R&quot;</span>)</span></code></pre></div>
 </div>
 <div id="step-3b-all-tag-datasets" class="section level2" number="24.4">
 <h2><span class="header-section-number">24.4</span> Step 3B: all tag
 datasets</h2>
-<div class="sourceCode" id="cb68"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
-<span id="cb68-2"><a href="#cb68-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
-<span id="cb68-3"><a href="#cb68-3" tabindex="-1"></a>)</span>
-<span id="cb68-4"><a href="#cb68-4" tabindex="-1"></a></span>
-<span id="cb68-5"><a href="#cb68-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step3_LOOP_Activity_Classification.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb82"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" tabindex="-1"></a>data_parent_dir <span class="ot">&lt;-</span> <span class="fu">here</span>(</span>
+<span id="cb82-2"><a href="#cb82-2" tabindex="-1"></a>  <span class="st">&quot;Sample_Data&quot;</span>, <span class="st">&quot;Interim&quot;</span>, <span class="st">&quot;Motus_Tower_Data_Filtered&quot;</span></span>
+<span id="cb82-3"><a href="#cb82-3" tabindex="-1"></a>)</span>
+<span id="cb82-4"><a href="#cb82-4" tabindex="-1"></a></span>
+<span id="cb82-5"><a href="#cb82-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Step3_LOOP_Activity_Classification.R&quot;</span>)</span></code></pre></div>
 </div>
 </div>
 <div id="glossary" class="section level1" number="25">
