@@ -1466,8 +1466,6 @@ for (i in seq_len(nrow(bird_deployments))) {
     tower_type_thresholds = tower_type_thresholds
   )
   
-  check_missing_thresholds(receiver_thresholds)
-  
   data_clean <- attach_receiver_parameters(
     data_clean = data_clean,
     tower_long = tower_long,
