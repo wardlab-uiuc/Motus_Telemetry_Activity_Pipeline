@@ -273,59 +273,63 @@ classify_activity <- function(df,
 # FUNCTION: info_fast
 # ------------------------------------------------------------------------------
 
+
 info_fast <- function(df, lat, lon, tz_local) {
   
   df2 <- df %>%
     mutate(
-      localtime = as.POSIXlt(date_time_local, tz = tz_local),
-      date      = as.Date(localtime)
+      date_time_local = lubridate::with_tz(date_time_local, tzone = tz_local),
+      localtime = date_time_local,
+      date = as.Date(date_time_local, tz = tz_local)
     )
   
   unique_dates <- unique(df2$date)
   
   sun_moon_df <- tibble(date = unique_dates) %>%
     mutate(
-      sun = purrr::map(date, ~ getSunlightTimes(
-        date = .x,
-        lat  = lat,
-        lon  = lon,
-        keep = c("nauticalDawn", "sunrise", "sunset", "nauticalDusk"),
-        tz   = tz_local
-      )),
+      sun = purrr::map(
+        date,
+        ~ getSunlightTimes(
+          date = .x,
+          lat  = lat,
+          lon  = lon,
+          keep = c("nauticalDawn", "sunrise", "sunset", "nauticalDusk"),
+          tz   = tz_local
+        )
+      ),
       moon = purrr::map(date, ~ getMoonIllumination(.x)),
       moonpos = purrr::map(date, ~ getMoonPosition(.x, lat = lat, lon = lon))
     ) %>%
+    tidyr::unnest(sun) %>%
     mutate(
-      nauticalDawn = map_chr(sun, ~ as.character(.x$nauticalDawn)),
-      sunrise      = map_chr(sun, ~ as.character(.x$sunrise)),
-      sunset       = map_chr(sun, ~ as.character(.x$sunset)),
-      nauticalDusk = map_chr(sun, ~ as.character(.x$nauticalDusk)),
-      fraction     = map_dbl(moon,    ~ .x$fraction),
-      altitude     = map_dbl(moonpos, ~ .x$altitude)
+      nauticalDawn = lubridate::with_tz(nauticalDawn, tz_local),
+      sunrise      = lubridate::with_tz(sunrise, tz_local),
+      sunset       = lubridate::with_tz(sunset, tz_local),
+      nauticalDusk = lubridate::with_tz(nauticalDusk, tz_local),
+      fraction     = purrr::map_dbl(moon, ~ .x$fraction),
+      altitude     = purrr::map_dbl(moonpos, ~ .x$altitude)
     ) %>%
-    select(-sun, -moon, -moonpos) %>%
-    mutate(across(
-      c(nauticalDawn, sunrise, sunset, nauticalDusk),
-      ~ as.POSIXct(.x, tz = tz_local)
-    ))
+    select(
+      date,
+      nauticalDawn, sunrise, sunset, nauticalDusk,
+      fraction, altitude
+    )
   
   df3 <- df2 %>%
-    left_join(sun_moon_df, by = "date")
-  
-  df3 <- df3 %>%
+    left_join(sun_moon_df, by = "date") %>%
     mutate(
       timing = case_when(
-        localtime >= nauticalDawn & localtime <  sunrise      ~ "dawn",
-        localtime >= sunrise      & localtime <= sunset       ~ "day",
-        localtime >  sunset       & localtime <= nauticalDusk ~ "dusk",
-        localtime >  nauticalDusk                             ~ "night_1",
-        localtime <  nauticalDawn                             ~ "night_2",
+        date_time_local >= nauticalDawn & date_time_local <  sunrise      ~ "dawn",
+        date_time_local >= sunrise      & date_time_local <= sunset       ~ "day",
+        date_time_local >  sunset       & date_time_local <= nauticalDusk ~ "dusk",
+        date_time_local >  nauticalDusk                                    ~ "night_1",
+        date_time_local <  nauticalDawn                                    ~ "night_2",
         TRUE ~ NA_character_
       )
     )
   
   if (any(is.na(df3$timing))) {
-    warning("⚠️ Some rows have NA timing (missing sun/moon times).")
+    warning("⚠️ Some rows have NA timing. Check date_time_local, coordinates, timezone, or sun times.")
   }
   
   return(df3)
