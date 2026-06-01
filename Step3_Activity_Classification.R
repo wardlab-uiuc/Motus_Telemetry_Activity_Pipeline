@@ -1599,10 +1599,27 @@ for (i in seq_len(nrow(bird_deployments))) {
   raw_basename <- tools::file_path_sans_ext(basename(file_path))
   out_stem <- paste0(raw_basename, "_Band", Band)
   
+  df_classified_export <- df_classified %>%
+    mutate(
+      date_time_utc = format(
+        lubridate::with_tz(date_time_local, "UTC"),
+        "%Y-%m-%d %H:%M:%S",
+        tz = "UTC"
+      ),
+      date_time_local_readable = format(
+        lubridate::with_tz(date_time_local, tz_local),
+        "%Y-%m-%d %H:%M:%S",
+        tz = tz_local
+      ),
+      date_local = as.Date(lubridate::with_tz(date_time_local, tz_local)),
+      hour_local = lubridate::hour(lubridate::with_tz(date_time_local, tz_local)),
+      timezone_local = tz_local
+    )
+  
   save_activity_tables(
     output_dir = output_dir,
     out_stem = out_stem,
-    df_classified = df_classified,
+    df_classified = df_classified_export,
     activity_hourly = activity_hourly,
     activity_hourly_summary = activity_hourly_summary
   )
