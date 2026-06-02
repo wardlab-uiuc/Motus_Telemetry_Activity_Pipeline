@@ -519,29 +519,23 @@ plot_daily_daytime_activity <- function(activity_hourly, subtitle = NULL) {
     mutate(
       ci_lower = pmax(ci_lower, 0),
       ci_upper = pmin(ci_upper, 1)
-    )
+    ) %>%
+    filter(!is.na(date), !is.na(avg_percent_activity))
   
-  first_date <- min(df_day$date)
-  last_date  <- max(df_day$date)
+  if (nrow(df_day) == 0) {
+    message("Skipping daily daytime activity plot: no valid daytime activity values.")
+    return(invisible())
+  }
   
-  ggplot(df_day, aes(x = date, y = avg_percent_activity, color = date)) +
-    geom_line(size = 1) +
+  first_date <- min(df_day$date, na.rm = TRUE)
+  last_date  <- max(df_day$date, na.rm = TRUE)
+  
+  p <- ggplot(df_day, aes(x = date, y = avg_percent_activity, color = date)) +
+    geom_line(linewidth = 1) +
     geom_point(size = 2) +
     scale_y_continuous(
       labels = scales::percent_format(accuracy = 1),
       limits = c(0, 0.50)
-    ) +
-    scale_x_date(
-      breaks = c(min(df_day$date), max(df_day$date)),
-      labels = scales::label_date("%Y-%m-%d"),
-      expand = expansion(add = c(0, 0))
-    ) +
-    scale_color_viridis_c(
-      option = "plasma",
-      begin = 0.2, end = 0.8,
-      name = "Date",
-      breaks = c(first_date, last_date),
-      labels = c(format(first_date, "%b %d"), format(last_date, "%b %d"))
     ) +
     labs(
       title = "Average Daytime Activity per Day",
@@ -551,4 +545,36 @@ plot_daily_daytime_activity <- function(activity_hourly, subtitle = NULL) {
       caption = "Daytime hours only"
     ) +
     theme_woth()
+  
+  if (first_date == last_date) {
+    
+    p <- p +
+      scale_x_date(
+        date_breaks = "1 day",
+        date_labels = "%Y-%m-%d"
+      ) +
+      guides(color = "none")
+    
+  } else {
+    
+    p <- p +
+      scale_x_date(
+        breaks = c(first_date, last_date),
+        labels = scales::label_date("%Y-%m-%d"),
+        expand = expansion(add = c(0, 0))
+      ) +
+      scale_color_viridis_c(
+        option = "plasma",
+        begin = 0.2,
+        end = 0.8,
+        name = "Date",
+        breaks = as.numeric(c(first_date, last_date)),
+        labels = c(
+          format(first_date, "%b %d"),
+          format(last_date, "%b %d")
+        )
+      )
+  }
+  
+  p
 }
