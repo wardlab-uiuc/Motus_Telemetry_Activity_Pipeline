@@ -567,7 +567,16 @@ define_multi_receiver_sites <- function() {
 
 filter_to_site_receivers <- function(data, multi_receiver_sites) {
   receiver_counts <- data %>%
+    filter(!is.na(recvDeployName)) %>%
     count(recvDeployName, sort = TRUE)
+  
+  if (nrow(receiver_counts) == 0) {
+    return(list(
+      data = data[0, ],
+      top_recv_name = NA_character_,
+      site_receivers = NA_character_
+    ))
+  }
   
   top_recv_name <- receiver_counts$recvDeployName[1]
   
@@ -1384,6 +1393,11 @@ for (data_dir in dataset_folders) {
       data = data,
       multi_receiver_sites = multi_receiver_sites
     )
+    
+    if (is.na(site_result$top_recv_name)) {
+      message("  ⚠️ Skipping deployment: top receiver is NA.")
+      next
+    }
     
     data <- site_result$data
     
