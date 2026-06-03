@@ -317,9 +317,19 @@ alltags_rds <- file.path(
   paste0(project_label, "_alltags_", download_id, ".RDS")
 )
 
-saveRDS(df_alltags, alltags_rds)
-
-message("✅ Saved alltags-style file: ", alltags_rds)
+if (run_mode == "existing_rds") {
+  
+  message(
+    "⏭️ Existing alltags-style RDS was loaded, so the overarching alltags file was not resaved: ",
+    existing_alltags_rds
+  )
+  
+} else {
+  
+  saveRDS(df_alltags, alltags_rds)
+  
+  message("✅ Saved alltags-style file: ", alltags_rds)
+}
 
 # ==============================================================================
 # 4) Check required columns
