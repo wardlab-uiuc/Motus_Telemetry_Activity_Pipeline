@@ -1092,9 +1092,14 @@ summarize_hourly_activity <- function(
     ) %>%
     group_by(date, hour, timing) %>%
     summarise(
-      sample_size = n(),
-      n_active = sum(active, na.rm = TRUE),
-      percent_activity = n_active / sample_size,
+      sample_size = sum(activity_denominator, na.rm = TRUE),
+      total_rows = n(),
+      n_active = sum(active & activity_denominator, na.rm = TRUE),
+      percent_activity = if_else(
+        sample_size > 0,
+        n_active / sample_size,
+        NA_real_
+      ),
       .groups = "drop"
     ) %>%
     filter(sample_size >= min_required_samples) %>%

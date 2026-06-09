@@ -115,7 +115,9 @@ classify_activity <- function(df,
         !is.na(S2N) &
         !is.na(lag_S2N) &
         S2N >= S2N_cutoff &
-        lag_S2N >= S2N_cutoff
+        lag_S2N >= S2N_cutoff,
+      
+      activity_denominator = good_signal
     )
   
   # ============================================================================
@@ -175,12 +177,12 @@ classify_activity <- function(df,
   df <- df %>%
     mutate(
       port_change =
-        valid_pair &
+        good_signal &
         !is.na(lag_port) &
         top_port != lag_port,
       
       receiver_change =
-        valid_pair &
+        good_signal &
         !is.na(lag_receiver) &
         recvDeployName != lag_receiver
     )
