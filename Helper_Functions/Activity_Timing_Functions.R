@@ -297,7 +297,8 @@ info_fast <- function(df, lat, lon, tz_local) {
           lon  = lon,
           keep = c("nauticalDawn", "sunrise", "sunset", "nauticalDusk"),
           tz   = tz_local
-        )
+        ) %>%
+          dplyr::select(-date)
       ),
       moon = purrr::map(date, ~ getMoonIllumination(.x)),
       moonpos = purrr::map(date, ~ getMoonPosition(.x, lat = lat, lon = lon))
