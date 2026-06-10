@@ -182,7 +182,7 @@ classify_activity <- function(df,
         top_port != lag_port,
       
       receiver_change =
-        good_signal &
+        valid_pair &
         !is.na(lag_receiver) &
         recvDeployName != lag_receiver
     )
