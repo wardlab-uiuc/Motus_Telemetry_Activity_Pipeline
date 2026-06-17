@@ -252,6 +252,8 @@ if (run_mode == "example") {
   
   tryCatch({
     
+    motusLogout()
+    
     tagme(
       projRecv = projRecv_id,
       dir = motus_database_dir,
