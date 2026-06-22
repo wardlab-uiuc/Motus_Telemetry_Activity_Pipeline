@@ -77,11 +77,9 @@ classify_activity <- function(df,
   
   df <- df %>%
     mutate(
-      time_dif = as.numeric(difftime(
-        date_time_local,
-        lag(date_time_local),
-        units = "secs"
-      ))
+      time_num = as.numeric(date_time_local),
+      lag_time_num = lag(time_num),
+      time_dif = time_num - lag_time_num
     )
   
   # ============================================================================
@@ -90,9 +88,14 @@ classify_activity <- function(df,
   
   df <- df %>%
     mutate(
+      tolerance_allowed = if (!"tolerance" %in% names(.)) {
+        stop("❌ Missing required tolerance column.")
+      } else {
+        tolerance
+      },
       valid_pair =
         !is.na(time_dif) &
-        abs(time_dif - duty_cycle) <= tolerance
+        abs(time_dif - duty_cycle) <= tolerance_allowed
     )
   
   # ============================================================================
@@ -274,9 +277,71 @@ classify_activity <- function(df,
 # ------------------------------------------------------------------------------
 # FUNCTION: info_fast
 # ------------------------------------------------------------------------------
-
+#
+# PURPOSE
+# ------------------------------------------------------------------------------
+# Assign biologically meaningful diel timing categories to detections based on:
+#
+#   • deployment latitude
+#   • deployment longitude
+#   • local time zone
+#   • daily sun position
+#
+# The function calculates civil dawn, nautical dawn, nautical dusk,
+# and civil dusk for each date, then assigns every detection to a
+# standardized diel period.
+#
+# TIMING DEFINITIONS
+# ------------------------------------------------------------------------------
+# dawn
+#   civil dawn → nautical dawn
+#
+# day
+#   nautical dawn → nautical dusk
+#
+# dusk
+#   nautical dusk → civil dusk
+#
+# night_1
+#   civil dusk → midnight
+#
+# night_2
+#   midnight → civil dawn
+#
+# Night is intentionally split into two categories so detections remain
+# chronologically ordered across midnight while still representing one
+# biological nighttime period.
+#
+# DESIGN PRINCIPLES
+# ------------------------------------------------------------------------------
+# • Timing is calculated in the bird's local time zone
+# • Solar events are calculated separately for each date
+# • Nighttime is split into night_1 and night_2 to preserve temporal order
+# • Moon information is retained for potential downstream analyses
+# • Original detection timestamps are preserved
+#
+# OUTPUT
+# ------------------------------------------------------------------------------
+# Returns the original dataframe plus:
+#
+#   date
+#   civilDawn
+#   nauticalDawn
+#   nauticalDusk
+#   civilDusk
+#   fraction      (moon illumination fraction)
+#   altitude      (moon altitude)
+#   timing        (dawn/day/dusk/night_1/night_2)
+#
+# ------------------------------------------------------------------------------
 
 info_fast <- function(df, lat, lon, tz_local) {
+  
+  # ============================================================================
+  # PHASE 1 — STANDARDIZE LOCAL DATETIME
+  # ============================================================================
+  # Convert timestamps into the deployment's local time zone and
+  # create a local date for solar calculations.
   
   df2 <- df %>%
     mutate(
@@ -285,55 +350,134 @@ info_fast <- function(df, lat, lon, tz_local) {
       date = as.Date(date_time_local, tz = tz_local)
     )
   
+  # ============================================================================
+  # PHASE 2 — CALCULATE DAILY SUN & MOON INFORMATION
+  # ============================================================================
+  # Solar events are calculated once per date and later joined back
+  # to the detection-level dataframe.
+  
   unique_dates <- unique(df2$date)
   
   sun_moon_df <- tibble(date = unique_dates) %>%
     mutate(
+      
+      # ------------------------------------------------------------------------
+      # Solar timing
+      # ------------------------------------------------------------------------
+      
       sun = purrr::map(
         date,
         ~ getSunlightTimes(
           date = .x,
           lat  = lat,
           lon  = lon,
-          keep = c("nauticalDawn", "sunrise", "sunset", "nauticalDusk"),
-          tz   = tz_local
+          keep = c(
+            "dawn",          # civil dawn
+            "nauticalDawn",
+            "nauticalDusk",
+            "dusk"           # civil dusk
+          ),
+          tz = tz_local
         ) %>%
           dplyr::select(-date)
       ),
+      
+      # ------------------------------------------------------------------------
+      # Lunar information (retained for downstream analyses)
+      # ------------------------------------------------------------------------
+      
       moon = purrr::map(date, ~ getMoonIllumination(.x)),
       moonpos = purrr::map(date, ~ getMoonPosition(.x, lat = lat, lon = lon))
     ) %>%
+    
     tidyr::unnest(sun) %>%
+    
     mutate(
+      
+      # ------------------------------------------------------------------------
+      # Convert all solar events into local timezone
+      # ------------------------------------------------------------------------
+      
+      civilDawn    = lubridate::with_tz(dawn, tz_local),
       nauticalDawn = lubridate::with_tz(nauticalDawn, tz_local),
-      sunrise      = lubridate::with_tz(sunrise, tz_local),
-      sunset       = lubridate::with_tz(sunset, tz_local),
       nauticalDusk = lubridate::with_tz(nauticalDusk, tz_local),
-      fraction     = purrr::map_dbl(moon, ~ .x$fraction),
-      altitude     = purrr::map_dbl(moonpos, ~ .x$altitude)
+      civilDusk    = lubridate::with_tz(dusk, tz_local),
+      
+      # ------------------------------------------------------------------------
+      # Extract moon metrics
+      # ------------------------------------------------------------------------
+      
+      fraction = purrr::map_dbl(moon, ~ .x$fraction),
+      altitude = purrr::map_dbl(moonpos, ~ .x$altitude)
     ) %>%
+    
     select(
       date,
-      nauticalDawn, sunrise, sunset, nauticalDusk,
-      fraction, altitude
+      civilDawn,
+      nauticalDawn,
+      nauticalDusk,
+      civilDusk,
+      fraction,
+      altitude
     )
   
+  # ============================================================================
+  # PHASE 3 — JOIN SOLAR DATA TO DETECTIONS
+  # ============================================================================
+  # Each detection receives the solar and lunar information associated
+  # with its local date.
+  
   df3 <- df2 %>%
-    left_join(sun_moon_df, by = "date") %>%
+    left_join(sun_moon_df, by = "date")
+  
+  # ============================================================================
+  # PHASE 4 — ASSIGN DIEL TIMING CATEGORIES
+  # ============================================================================
+  # Timing periods:
+  #
+  # dawn    = civil dawn → nautical dawn
+  # day     = nautical dawn → nautical dusk
+  # dusk    = nautical dusk → civil dusk
+  # night_1 = civil dusk → midnight
+  # night_2 = midnight → civil dawn
+  
+  df3 <- df3 %>%
     mutate(
       timing = case_when(
-        date_time_local >= nauticalDawn & date_time_local <  sunrise      ~ "dawn",
-        date_time_local >= sunrise      & date_time_local <= sunset       ~ "day",
-        date_time_local >  sunset       & date_time_local <= nauticalDusk ~ "dusk",
-        date_time_local >  nauticalDusk                                    ~ "night_1",
-        date_time_local <  nauticalDawn                                    ~ "night_2",
+        
+        date_time_local >= civilDawn &
+          date_time_local < nauticalDawn ~ "dawn",
+        
+        date_time_local >= nauticalDawn &
+          date_time_local <= nauticalDusk ~ "day",
+        
+        date_time_local > nauticalDusk &
+          date_time_local <= civilDusk ~ "dusk",
+        
+        date_time_local > civilDusk ~ "night_1",
+        
+        date_time_local < civilDawn ~ "night_2",
+        
         TRUE ~ NA_character_
       )
     )
   
+  # ============================================================================
+  # PHASE 5 — QUALITY CHECK
+  # ============================================================================
+  # Any NA timing values usually indicate timezone problems,
+  # coordinate issues, or missing solar calculations.
+  
   if (any(is.na(df3$timing))) {
-    warning("⚠️ Some rows have NA timing. Check date_time_local, coordinates, timezone, or sun times.")
+    warning(
+      "⚠️ Some rows have NA timing. Check date_time_local, ",
+      "coordinates, timezone, or solar calculations."
+    )
   }
+  
+  # ============================================================================
+  # PHASE 6 — RETURN RESULTS
+  # ============================================================================
   
   return(df3)
 }

@@ -116,8 +116,9 @@ source(here("Helper_Functions","Activity_Timing_Functions.R"))
 # ==============================================================================
 # ---- Telemetry settings ----
 
-# Expected interval between tag detections in seconds.
-duty_cycle <- 15
+# Duty cycle must be provided in bird metadata.
+# The expected column name is Burst_Interval, in seconds.
+required_duty_cycle_col <- "Burst_Interval"
 
 # Allowed timing tolerance around the expected duty cycle, in seconds.
 # For example, duty_cycle = 15 and tolerance = 0.3 allows intervals from
@@ -161,6 +162,58 @@ clean_dongle_type <- function(x) {
     grepl("Sigma", x, ignore.case = TRUE) ~ "SigmaEight",
     TRUE ~ x
   )
+}
+
+
+# ------------------------------------------------------------------------------
+# Helper: get_local_timezone()
+#
+# Dynamically find timezone based on lat/long information.
+# ------------------------------------------------------------------------------
+get_local_timezone <- function(lat, lon) {
+  
+  tz_local <- lutz::tz_lookup_coords(
+    lat = lat,
+    lon = lon,
+    method = "accurate"
+  )
+  
+  if (length(tz_local) != 1 || is.na(tz_local)) {
+    stop(
+      "❌ Could not determine timezone from coordinates: lat = ",
+      lat, ", lon = ", lon
+    )
+  }
+  
+  tz_local
+}
+
+# ------------------------------------------------------------------------------
+# Helper: get_deployment_duty_cycle()
+#
+# Dynamically put duty cycle/burt interval for each specific tag, rather than using
+# a global duty cycle for all tags in a project.
+# ------------------------------------------------------------------------------
+get_deployment_duty_cycle <- function(bird_row, duty_cycle_col = "Burst_Interval") {
+  
+  if (!duty_cycle_col %in% names(bird_row)) {
+    stop(
+      "❌ Missing required duty-cycle column in bird metadata: ",
+      duty_cycle_col
+    )
+  }
+  
+  duty_value <- suppressWarnings(as.numeric(bird_row[[duty_cycle_col]][1]))
+  
+  if (is.na(duty_value) || duty_value <= 0) {
+    stop(
+      "❌ Invalid duty cycle for Band ",
+      bird_row$Band,
+      ". Check ", duty_cycle_col, " in bird metadata."
+    )
+  }
+  
+  duty_value
 }
 
 # ------------------------------------------------------------------------------
@@ -293,26 +346,35 @@ load_bird_files <- function(bird_folders, MotusTagID, bird_row) {
 # are treated as independent observations.
 # ------------------------------------------------------------------------------
 
-clean_and_select_strongest_detections <- function(data, tolerance) {
+clean_and_select_strongest_detections <- function(data, duty_cycle, tolerance) {
+  
+  tz_local <- attr(data$date_time_local, "tzone")
+  
+  if (is.null(tz_local) || is.na(tz_local) || tz_local == "") {
+    tz_local <- "UTC"
+  }
+  
   data %>%
-    arrange(recvDeployName, date_time_local) %>%
-    group_by(recvDeployName) %>%
     mutate(
-      time_diff = as.numeric(
-        difftime(date_time_local, lag(date_time_local), units = "secs")
-      ),
-      group_id = cumsum(is.na(time_diff) | time_diff > tolerance)
+      time_num = as.numeric(date_time_local),
+      duty_align = round(time_num / duty_cycle) * duty_cycle,
+      duty_time = as.POSIXct(
+        duty_align,
+        origin = "1970-01-01",
+        tz = tz_local
+      )
     ) %>%
-    group_by(recvDeployName, group_id) %>%
+    group_by(duty_time, recvDeployName) %>%
     slice_max(sig, n = 1, with_ties = FALSE) %>%
     ungroup() %>%
-    select(-time_diff, -group_id) %>%
+    group_by(duty_time) %>%
+    slice_max(sig, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
     mutate(
-      date_time_local = round_date(
-        date_time_local,
-        unit = seconds(tolerance)
-      )
-    )
+      date_time_local = duty_time,
+      duty_cycle = duty_cycle
+    ) %>%
+    select(-time_num, -duty_align, -duty_time)
 }
 
 # ------------------------------------------------------------------------------
@@ -357,9 +419,9 @@ calculate_signal_metrics <- function(data, duty_cycle, tolerance, S2N_cutoff) {
       S2N = sig - noise,
       lag_S2N = lag(S2N),
       sig_lag = lag(sig),
-      time_dif = as.numeric(
-        difftime(date_time_local, lag(date_time_local), units = "secs")
-      ),
+      time_num = as.numeric(date_time_local),
+      lag_time_num = lag(time_num),
+      time_dif = time_num - lag_time_num,
       
       sig_diff = if_else(
         !is.na(time_dif) &
@@ -521,6 +583,7 @@ classify_threshold_activity <- function(data, thresholds, S2N_cutoff) {
 make_threshold_summary_table <- function(all_results) {
   purrr::imap_dfr(all_results, ~ tibble(
     bird = .x$bird,
+    duty_cycle = .x$duty_cycle,
     top_receiver = .x$recvDeployName,
     tower_type = .x$tower_type,
     receiver_era_start_date = as.Date(.x$receiver_era_start_date),
@@ -552,7 +615,6 @@ save_threshold_histograms <- function(
     all_results,
     all_signal_data_for_plots,
     output_dir,
-    duty_cycle,
     min_consecutive_night_detections
 ) {
   
@@ -622,7 +684,7 @@ save_threshold_histograms <- function(
     
     runs_ge_min <- count_night_runs(
       df_night = df_night,
-      duty_cycle = duty_cycle,
+      duty_cycle = unique(df_plot$duty_cycle)[1],
       tolerance = unique(df_plot$tolerance)[1],
       min_run_length = min_consecutive_night_detections
     )
@@ -880,9 +942,19 @@ for (i in seq_len(nrow(birds))) {
   
   bird_row <- bird_row[1, ]
   
+  duty_cycle <- get_deployment_duty_cycle(
+    bird_row = bird_row,
+    duty_cycle_col = required_duty_cycle_col
+  )
+  
   lat <- bird_row$Lat
   lon <- bird_row$Lon
-  local_tz <- "America/Chicago"
+  local_tz <- get_local_timezone(
+    lat = lat,
+    lon = lon
+  )
+  
+  message("  Bird-specific duty cycle: ", duty_cycle, " sec")
   
   message("  Metadata coordinates: lat = ", lat, ", lon = ", lon)
   message("  Local timezone: ", local_tz)
@@ -933,6 +1005,7 @@ for (i in seq_len(nrow(birds))) {
   
   data_clean <- clean_and_select_strongest_detections(
     data = data_clean,
+    duty_cycle = duty_cycle,
     tolerance = tolerance
   )
   
@@ -1020,6 +1093,7 @@ for (i in seq_len(nrow(birds))) {
       S2N_cutoff = S2N_cutoff
     ) %>%
       mutate(
+        duty_cycle = duty_cycle,
         tolerance = tolerance,
         S2N_cutoff = S2N_cutoff
       )
@@ -1106,6 +1180,7 @@ for (i in seq_len(nrow(birds))) {
           date_time_local,
           timing,
           recvDeployName,
+          duty_cycle,
           tolerance,
           S2N_cutoff,
           lower_ratio,
@@ -1140,6 +1215,7 @@ for (i in seq_len(nrow(birds))) {
     
     all_results[[result_name]] <- list(
       bird = bird_id,
+      duty_cycle = duty_cycle,
       recvDeployName = top_receiver,
       tower_type = era_tower,
       receiver_era_start_date = era_start,
@@ -1206,7 +1282,6 @@ save_threshold_histograms(
   all_results = all_results,
   all_signal_data_for_plots = all_signal_data_for_plots,
   output_dir = threshold_plots_dir,
-  duty_cycle = duty_cycle,
   min_consecutive_night_detections = min_consecutive_night_detections
 )
 

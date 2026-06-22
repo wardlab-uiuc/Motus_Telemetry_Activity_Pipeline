@@ -117,14 +117,12 @@ source(here("Helper_Functions", "Diagnostic_Plots_Functions.R"))
 # 3) User settings
 # ==============================================================================
 
-# Expected interval between detections.
-duty_cycle <- 15
+# Duty cycle must be provided in bird metadata.
+# The expected column name is Burst_Interval, in seconds.
+required_duty_cycle_col <- "Burst_Interval"
 
 # Minimum fraction of expected detections required for an hourly activity estimate.
-# With a 15-second duty cycle, 240 detections are expected per hour.
-# A threshold of 0.25 requires at least 60 detections per hour.
 sample_size_threshold <- 0.25
-min_required_samples <- (3600 / duty_cycle) * sample_size_threshold
 
 # Used for detection-time alignment and deduplication.
 tolerance <- 0.3
@@ -298,6 +296,57 @@ find_latest_dataset_folder <- function(
     arrange(desc(download_date))
   
   folder_info$data_dir[1]
+}
+
+# ------------------------------------------------------------------------------
+# Helper: get_deployment_duty_cycle()
+#
+# Dynamically put duty cycle/burt interval for each specific tag, rather than using
+# a global duty cycle for all tags in a project.
+# ------------------------------------------------------------------------------
+get_deployment_duty_cycle <- function(bird_row, duty_cycle_col = "Burst_Interval") {
+  
+  if (!duty_cycle_col %in% names(bird_row)) {
+    stop(
+      "❌ Missing required duty-cycle column in bird metadata: ",
+      duty_cycle_col
+    )
+  }
+  
+  duty_value <- suppressWarnings(as.numeric(bird_row[[duty_cycle_col]][1]))
+  
+  if (is.na(duty_value) || duty_value <= 0) {
+    stop(
+      "❌ Invalid duty cycle for Band ",
+      bird_row$Band,
+      ". Check ", duty_cycle_col, " in bird metadata."
+    )
+  }
+  
+  duty_value
+}
+
+# ------------------------------------------------------------------------------
+# Helper: get_local_timezone()
+#
+# Dynamically find timezone based on lat/long information.
+# ------------------------------------------------------------------------------
+get_local_timezone <- function(lat, lon) {
+  
+  tz_local <- lutz::tz_lookup_coords(
+    lat = lat,
+    lon = lon,
+    method = "accurate"
+  )
+  
+  if (length(tz_local) != 1 || is.na(tz_local)) {
+    stop(
+      "❌ Could not determine timezone from coordinates: lat = ",
+      lat, ", lon = ", lon
+    )
+  }
+  
+  tz_local
 }
 
 # ------------------------------------------------------------------------------
@@ -523,6 +572,7 @@ get_bird_deployments <- function(Bird_metadata, MotusTagID_num, mfgID) {
       else max(Date_end, na.rm = TRUE),
       Lat = first(Lat),
       Lon = first(Lon),
+      Burst_Interval = first(na.omit(Burst_Interval)),
       .groups = "drop"
     ) %>%
     mutate(
@@ -655,6 +705,12 @@ filter_to_site_receivers <- function(data, multi_receiver_sites) {
 # ------------------------------------------------------------------------------
 
 clean_and_select_strongest_detections <- function(data, duty_cycle) {
+  tz_local <- attr(data$date_time_local, "tzone")
+  
+  if (is.null(tz_local) || is.na(tz_local) || tz_local == "") {
+    tz_local <- "UTC"
+  }
+  
   data %>%
     mutate(
       time_num = as.numeric(date_time_local),
@@ -662,7 +718,7 @@ clean_and_select_strongest_detections <- function(data, duty_cycle) {
       duty_time = as.POSIXct(
         duty_align,
         origin = "1970-01-01",
-        tz = attr(date_time_local, "tzone")
+        tz = tz_local
       )
     ) %>%
     group_by(duty_time, recvDeployName) %>%
@@ -671,9 +727,12 @@ clean_and_select_strongest_detections <- function(data, duty_cycle) {
     group_by(duty_time) %>%
     slice_max(sig, n = 1, with_ties = FALSE) %>%
     ungroup() %>%
-    mutate(date_time_local = duty_time) %>%
+    mutate(
+      date_time_local = duty_time,
+      duty_cycle = duty_cycle
+    ) %>%
     select(-time_num, -duty_align, -duty_time)
-  }
+}
 
 # ------------------------------------------------------------------------------
 # Helper: check_missing_thresholds()
@@ -862,9 +921,12 @@ screen_stationary_tag_deployment <- function(
     mutate(
       S2N = sig - noise,
       lag_time = lag(date_time_local),
-      dt = as.numeric(difftime(date_time_local, lag_time, units = "secs")),
+      time_num = as.numeric(date_time_local),
+      lag_time_num = lag(time_num),
+      dt = time_num - lag_time_num,
       sig_lag = lag(sig),
       lag_S2N = lag(S2N),
+      tolerance_allowed = tolerance,
       
       # Calculate dB signal difference only for valid consecutive detections.
       # A comparison is valid only if:
@@ -873,7 +935,7 @@ screen_stationary_tag_deployment <- function(
       #   3. the previous detection also had adequate S2N.
       sig_dif = if_else(
         !is.na(dt) &
-          abs(dt - duty_cycle) <= tolerance &
+          abs(dt - duty_cycle) <= tolerance_allowed &
           S2N >= S2N_cutoff &
           lag_S2N >= S2N_cutoff,
         sig - sig_lag,
@@ -1037,10 +1099,12 @@ save_stationary_tag_screen <- function(
 
 classify_detection_activity <- function(data_clean, duty_cycle) {
   data_wide <- data_clean %>%
+    mutate(duty_cycle = duty_cycle) %>%
     pivot_wider(
       id_cols = c(
         date_time_local, timing,
         recvDeployName,
+        duty_cycle,
         tolerance, S2N_cutoff,
         lower_ratio, upper_ratio,
         lower_db, upper_db
@@ -1062,7 +1126,8 @@ classify_detection_activity <- function(data_clean, duty_cycle) {
     "sig_diff",
     "sig_ratio",
     "within_threshold",
-    "active"
+    "active",
+    "activity_denominator"
   )
   
   stopifnot(all(required_cols %in% names(df_classified)))
@@ -1175,6 +1240,8 @@ make_and_save_plots <- function(
     duty_cycle,
     lower_ratio,
     upper_ratio,
+    lower_db,
+    upper_db,
     MotusTagID,
     mfgID,
     deployment_suffix,
@@ -1388,18 +1455,43 @@ for (i in seq_len(nrow(bird_deployments))) {
     " | Band ", Band
   )
   
+  duty_cycle <- tryCatch(
+    get_deployment_duty_cycle(
+      bird_row = bird_row,
+      duty_cycle_col = required_duty_cycle_col
+    ),
+    error = function(e) {
+      message("  ⚠️ Skipping deployment: ", conditionMessage(e))
+      NA_real_
+    }
+  )
+  
+  if (is.na(duty_cycle)) {
+    next
+  }
+  
+  min_required_samples <- (3600 / duty_cycle) * sample_size_threshold
+  
+  message("  Bird-specific duty cycle: ", duty_cycle, " sec")
+  message("  Minimum samples per hour: ", ceiling(min_required_samples))
+  
   # ---------------------------------------------------------------------------
   # Determine local time zone for this deployment.
   # ---------------------------------------------------------------------------
   
-  tz_local <- tz_lookup_coords(
-    bird_row$Lat,
-    bird_row$Lon,
-    method = "accurate"
+  tz_local <- tryCatch(
+    get_local_timezone(
+      lat = bird_row$Lat,
+      lon = bird_row$Lon
+    ),
+    error = function(e) {
+      message("  ⚠️ Skipping deployment: ", conditionMessage(e))
+      NA_character_
+    }
   )
   
-  if (is.na(tz_local) || length(tz_local) != 1) {
-    stop("Invalid timezone lookup for Band ", Band)
+  if (is.na(tz_local)) {
+    next
   }
   
   # ---------------------------------------------------------------------------
@@ -1556,13 +1648,9 @@ for (i in seq_len(nrow(bird_deployments))) {
         data = df_classified,
         tower_long = tower_long,
         tower_type_thresholds = tower_type_thresholds
-      ),
+      ) %>%
+        select(recvDeployName, date_time_local, tower_type),
       by = c("recvDeployName", "date_time_local"),
-      relationship = "many-to-many"
-    ) %>%
-    left_join(
-      tower_type_thresholds,
-      by = "tower_type",
       relationship = "many-to-one"
     )
   
@@ -1608,12 +1696,12 @@ for (i in seq_len(nrow(bird_deployments))) {
     mutate(
       date_time_utc = format(
         lubridate::with_tz(date_time_local, "UTC"),
-        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%OS3",
         tz = "UTC"
       ),
       date_time_local_readable = format(
         lubridate::with_tz(date_time_local, tz_local),
-        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%OS3",
         tz = tz_local
       ),
       date_local = as.Date(lubridate::with_tz(date_time_local, tz_local)),
@@ -1645,6 +1733,8 @@ for (i in seq_len(nrow(bird_deployments))) {
     duty_cycle = duty_cycle,
     lower_ratio = lower_ratio,
     upper_ratio = upper_ratio,
+    lower_db = lower_db,
+    upper_db = upper_db,
     MotusTagID = MotusTagID,
     mfgID = mfgID,
     deployment_suffix = deployment_suffix,

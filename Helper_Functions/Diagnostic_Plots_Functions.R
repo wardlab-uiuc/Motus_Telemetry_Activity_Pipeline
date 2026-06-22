@@ -378,6 +378,10 @@ plot_fraction_expected_tod <- function(
 # PHASE 7 — DUTY CYCLE DIAGNOSTICS
 # =============================================================================
 
+# =============================================================================
+# PHASE 7 — DUTY CYCLE DIAGNOSTICS
+# =============================================================================
+
 plot_duty_cycle <- function(
     data_clean,
     dominant_port,
@@ -385,31 +389,51 @@ plot_duty_cycle <- function(
     subtitle
 ) {
   
+  # Force duty_cycle to be one numeric value.
+  # This prevents seq() errors if duty_cycle accidentally gets passed as a column
+  # or vector instead of a single value.
+  duty_cycle_value <- as.numeric(duty_cycle)[1]
+  
+  if (is.na(duty_cycle_value) || duty_cycle_value <= 0) {
+    stop("❌ duty_cycle must be a single positive numeric value.")
+  }
+  
   data_duty <- data_clean %>%
     filter(top_port == dominant_port) %>%
     arrange(date_time_local) %>%
     mutate(
       dt = as.numeric(
         difftime(date_time_local, lag(date_time_local), units = "secs")
-      ),
-      snapped = snap_interval(
-        dt,
-        centers = seq(duty_cycle, 60, by = duty_cycle)
       )
     ) %>%
-    filter(!is.na(snapped), snapped <= 60)
+    filter(
+      !is.na(dt),
+      is.finite(dt),
+      dt > 0,
+      dt <= 60
+    )
   
   if (nrow(data_duty) == 0) return(invisible())
   
-  ggplot(
-    data_duty,
-    aes(factor(snapped, levels = seq(duty_cycle, 60, by = duty_cycle)))
-  ) +
-    geom_bar(fill = "forestgreen", color = "black") +
+  ggplot(data_duty, aes(x = dt)) +
+    geom_histogram(
+      binwidth = 1,
+      boundary = 0,
+      color = "black",
+      fill = "forestgreen"
+    ) +
+    geom_vline(
+      xintercept = duty_cycle_value,
+      linetype = "dashed",
+      linewidth = 0.8
+    ) +
     labs(
       title = "Detection intervals relative to expected duty cycle",
       subtitle = subtitle,
-      x = sprintf("Time between detections, seconds; expected interval = %s s", duty_cycle),
+      x = sprintf(
+        "Time between consecutive detections, seconds; expected interval = %s s",
+        duty_cycle_value
+      ),
       y = "Number of detection intervals"
     ) +
     theme_woth()
