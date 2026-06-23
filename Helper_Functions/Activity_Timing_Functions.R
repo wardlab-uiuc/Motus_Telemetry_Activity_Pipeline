@@ -435,33 +435,33 @@ info_fast <- function(df, lat, lon, tz_local) {
   # ============================================================================
   # Timing periods:
   #
-  # dawn    = civil dawn → nautical dawn
-  # day     = nautical dawn → nautical dusk
-  # dusk    = nautical dusk → civil dusk
-  # night_1 = civil dusk → midnight
-  # night_2 = midnight → civil dawn
+  # dawn    = nautical dawn → civil dawn 
+  # day     = civil dawn → civil dusk
+  # dusk    = civil dusk → nautical dusk
+  # night_1 = nautical dusk → midnight
+  # night_2 = midnight → nautical dawn
   
   df3 <- df3 %>%
     mutate(
       timing = case_when(
         
-        date_time_local >= civilDawn &
-          date_time_local < nauticalDawn ~ "dawn",
-        
         date_time_local >= nauticalDawn &
-          date_time_local <= nauticalDusk ~ "day",
+          date_time_local < civilDawn ~ "dawn",
         
-        date_time_local > nauticalDusk &
-          date_time_local <= civilDusk ~ "dusk",
+        date_time_local >= civilDawn &
+          date_time_local < civilDusk ~ "day",
         
-        date_time_local > civilDusk ~ "night_1",
+        date_time_local >= civilDusk &
+          date_time_local < nauticalDusk ~ "dusk",
         
-        date_time_local < civilDawn ~ "night_2",
+        date_time_local >= nauticalDusk ~ "night_1",
+        
+        date_time_local < nauticalDawn ~ "night_2",
         
         TRUE ~ NA_character_
       )
     )
-  
+
   # ============================================================================
   # PHASE 5 — QUALITY CHECK
   # ============================================================================
