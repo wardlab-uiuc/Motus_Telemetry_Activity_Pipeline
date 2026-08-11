@@ -1,50 +1,191 @@
 ################################################################################
-## ADAPTIVE THRESHOLD PIPELINE
-## Wood Thrush telemetry
-##
-## Purpose:
-##   Estimate activity thresholds from signal variation during a period of inactivity
-##   (for Wood Thrushes, at night).
-##
-## This script:
-##   1. Loads Motus-filtered individual bird/tag files
-##   2. Combines all available seasons/downloads per MotusTagID × mfgID
-##   3. Assigns receiver hardware eras
-##   4. Selects each bird's top receiver
-##   5. Estimates thresholds from nighttime detections
-##   6. Saves threshold summaries and diagnostic plots
-##
-## Main output:
-##   - CSV threshold summary table, one row per bird × receiver era
-##   - RDS list of full per-era processed results
-##   - Diagnostic threshold histograms
+# STEP 2: ESTIMATE ACTIVITY THRESHOLDS
+#
+# PURPOSE
+# Estimate proportional signal-change activity thresholds from periods of
+# biologically low activity.
+#
+# For the included Wood Thrush example, nighttime detections are used as the
+# inactive calibration period.
+#
+# WORKFLOW
+#   1. Load Motus-filtered tag datasets created by Step 1
+#   2. Match each tag dataset to deployment and receiver metadata
+#   3. Assign detections to receiver hardware eras
+#   4. Retain the strongest detection for each transmission event
+#   5. Select the receiver contributing the most qualifying detections
+#   6. Identify valid consecutive nighttime detections
+#   7. Estimate proportional signal-change thresholds
+#   8. Save threshold summaries, processed results, and diagnostic plots
+#
+# MAIN OUTPUTS
+#   • CSV threshold summary table
+#   • RDS list containing complete threshold results
+#   • Diagnostic threshold histograms
+#
+# IMPORTANT
+# Edit Section 0 ("USER SETTINGS") before running the script.
 ################################################################################
 
-rm(list = ls())
 
 # ==============================================================================
-# 1) Packages and environment
+# 0) USER SETTINGS — EDIT THIS SECTION
 # ==============================================================================
+
+# ------------------------------------------------------------------------------
+# INPUT DATA
+# ------------------------------------------------------------------------------
+
+# Folder containing the Motus-filtered tag folders created by Step 1.
+
+root_dir <- here::here(
+  "Sample_Data",
+  "Interim",
+  "Motus_Tower_Data_Filtered"
+)
+
+
+# Deployment metadata.
 #
-# This section:
-#   1. Activates the project-specific renv environment if available
-#   2. Checks whether required packages are installed
-#   3. Installs any missing packages
-#   4. Loads all required libraries
-#   5. Resolves common namespace conflicts
+# Required fields include:
+#   motusTagID
+#   mfgID
+#   Band
+#   Year
+#   Lat
+#   Lon
+#   Burst_Interval
+
+bird_metadata_path <- here::here(
+  "Sample_Data",
+  "Raw",
+  "Metadata",
+  "WOTH_IL_Metadata.csv"
+)
+
+
+# Receiver metadata.
 #
-# Activating renv helps reproduce the package environment used during
-# development. If renv is unavailable, the script will continue using the
-# default R library.
+# Required primary-system fields:
+#   recvDeployName
+#   DongleType_1
+#   System1
+#
+# Optional second-system fields:
+#   DongleType_2
+#   System2
+#   System1End
+#
+# The optional fields may be blank when receiver hardware did not change.
+
+tower_metadata_path <- here::here(
+  "Sample_Data",
+  "Raw",
+  "Metadata",
+  "Tower_Metadata.csv"
+)
+
+
+# ------------------------------------------------------------------------------
+# TRANSMITTER METADATA
+# ------------------------------------------------------------------------------
+
+# Column in bird_metadata_path containing the programmed transmitter burst
+# interval in seconds.
+
+required_duty_cycle_col <- "Burst_Interval"
+
+
+# ------------------------------------------------------------------------------
+# THRESHOLD SETTINGS
+# ------------------------------------------------------------------------------
+
+# Allowed timing deviation around the expected transmitter burst interval.
+#
+# Example:
+# A 15-s burst interval with a tolerance of 0.3 s accepts consecutive
+# transmission events separated by 14.7–15.3 s.
+
+timing_tolerance <- 0.3
+
+
+# Maximum timestamp difference used to identify detections belonging to the
+# same transmitter burst.
+#
+# Multiple antennas or nearby receivers may record the same transmission at
+# slightly different timestamps.
+
+transmission_event_tolerance <- 0.3
+
+
+# Minimum number of consecutive nighttime detections required to estimate an
+# inactive baseline.
+
+min_consecutive_night_detections <- 15
+
+
+# Number of standard deviations used to define the lower and upper activity
+# threshold limits.
+
+threshold_sd_multiplier <- 2
+
+
+# ------------------------------------------------------------------------------
+# RECEIVER-SPECIFIC SIGNAL QUALITY
+# ------------------------------------------------------------------------------
+
+# Minimum signal-to-noise ratio (SNR) used for each receiver type.
+#
+# These are the default values used in this study. Researchers applying the
+# framework to other receiver systems may evaluate alternative cutoffs.
+
+parameter_lookup <- tibble::tribble(
+  ~DongleType,   ~SNR_cutoff,
+  "FUNcube",               6,
+  "RTL",                  10,
+  "SigmaEight",           12
+)
+
+
 # ==============================================================================
+# END USER SETTINGS
+#
+# Users should generally not need to edit anything below this point.
+# ==============================================================================
+
+
+
+# ==============================================================================
+# 1) PROJECT ENVIRONMENT AND PACKAGES
+# ==============================================================================
+
+# Motus timestamps are stored in UTC.
+# Local time is assigned explicitly later from deployment coordinates.
+
+Sys.setenv(TZ = "UTC")
+
 
 # ------------------------------------------------------------------------------
 # Activate renv environment if available
 # ------------------------------------------------------------------------------
 
 if (file.exists(here::here("renv", "activate.R"))) {
-  source(here::here("renv", "activate.R"))
+  
+  source(
+    here::here(
+      "renv",
+      "activate.R"
+    )
+  )
+  
+} else {
+  
+  warning(
+    "`renv/activate.R` was not found.\n",
+    "Packages will be loaded from the default R library."
+  )
 }
+
 
 # ------------------------------------------------------------------------------
 # Required packages
@@ -62,115 +203,286 @@ required_packages <- c(
   "stringr",
   "lutz",
   "here",
-  "patchwork",
-  "zoo",
-  "scales",
-  "vroom",
-  "tibble",
-  "magrittr"
+  "tibble"
 )
 
-# ------------------------------------------------------------------------------
-# Install missing packages
-# ------------------------------------------------------------------------------
 
-installed_packages <- rownames(installed.packages())
+package_available <- vapply(
+  required_packages,
+  requireNamespace,
+  quietly = TRUE,
+  FUN.VALUE = logical(1)
+)
 
 missing_packages <- required_packages[
-  !required_packages %in% installed_packages
+  !package_available
 ]
+
 
 if (length(missing_packages) > 0) {
   
-  message(
-    "📦 Installing missing packages: ",
-    paste(missing_packages, collapse = ", ")
+  stop(
+    "\nRequired package(s) are not installed:\n  ",
+    paste(missing_packages, collapse = ", "),
+    "\n\nRun `renv::restore()` from the project root before running this script."
   )
-  
-  install.packages(missing_packages)
 }
 
-# ------------------------------------------------------------------------------
-# Load packages
-# ------------------------------------------------------------------------------
 
 invisible(
-  lapply(required_packages, library, character.only = TRUE)
+  lapply(
+    required_packages,
+    library,
+    character.only = TRUE
+  )
 )
 
-# ------------------------------------------------------------------------------
-# Resolve common namespace conflicts
-# ------------------------------------------------------------------------------
 
-conflicted::conflict_prefer("filter", "dplyr")
-conflicted::conflict_prefer("lag", "dplyr")
-conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer(
+  "filter",
+  "dplyr"
+)
 
-# Custom function file.
-# This includes info_fast(), which assigns detections to diel timing periods, and classify_acivity(), which uses several
-# parameters to estimate whether a bird was active between two consecutive detections.
-source(here("Helper_Functions","Activity_Timing_Functions.R"))
+conflicted::conflict_prefer(
+  "lag",
+  "dplyr"
+)
 
-# ==============================================================================
-# 2) User settings
-# ==============================================================================
-# ---- Telemetry settings ----
+conflicted::conflict_prefer(
+  "select",
+  "dplyr"
+)
 
-# Duty cycle must be provided in bird metadata.
-# The expected column name is Burst_Interval, in seconds.
-required_duty_cycle_col <- "Burst_Interval"
-
-# Allowed timing tolerance around the expected duty cycle, in seconds.
-# For example, duty_cycle = 15 and tolerance = 0.3 allows intervals from
-# 14.7 to 15.3 seconds.
-tolerance <- 0.3
-
-# Minimum number of consecutive nighttime detections required to estimate
-# a stable inactive baseline. This prevents thresholds from being estimated
-# from very short or fragmented nighttime detection sequences.
-min_consecutive_night_detections <- 15
-
-# Number of standard deviations used to define the threshold envelope around
-# the inactive baseline. Larger values create wider, more conservative thresholds.
-threshold_sd_multiplier <- 2
-
-# ---- Paths ----
-
-# Folder containing individual Motus-filtered bird/tag folders.
-root_dir <- here("Sample_Data", "Interim", "Motus_Tower_Data_Filtered")
-
-# Metadata files.
-bird_metadata_path <- here("Sample_Data", "Raw", "Metadata", "WOTH_IL_Metadata.csv")
-tower_metadata_path <- here("Sample_Data", "Raw", "Metadata", "Tower_Metadata.csv")
-
-# ==============================================================================
-# 3) Additional helper functions
-# ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Helper: clean_dongle_type()
+# Load shared activity functions
+# ------------------------------------------------------------------------------
+
+helper_file <- here::here(
+  "Helper_Functions",
+  "Activity_Timing_Functions.R"
+)
+
+
+if (!file.exists(helper_file)) {
+  
+  stop(
+    "Required helper-function file was not found:\n",
+    helper_file
+  )
+}
+
+
+source(
+  helper_file
+)
+
+
+message(
+  "✅ Required packages and helper functions loaded."
+)
+
+
+
+# ==============================================================================
+# 2) VALIDATE USER SETTINGS AND INPUT FILES
+# ==============================================================================
+
+if (!dir.exists(root_dir)) {
+  
+  stop(
+    "Step 1 output directory was not found:\n",
+    root_dir
+  )
+}
+
+
+if (!file.exists(bird_metadata_path)) {
+  
+  stop(
+    "Deployment metadata file was not found:\n",
+    bird_metadata_path
+  )
+}
+
+
+if (!file.exists(tower_metadata_path)) {
+  
+  stop(
+    "Receiver metadata file was not found:\n",
+    tower_metadata_path
+  )
+}
+
+
+if (
+  !is.numeric(timing_tolerance) ||
+  length(timing_tolerance) != 1 ||
+  is.na(timing_tolerance) ||
+  timing_tolerance < 0
+) {
+  
+  stop(
+    "`timing_tolerance` must be one non-negative number."
+  )
+}
+
+
+if (
+  !is.numeric(transmission_event_tolerance) ||
+  length(transmission_event_tolerance) != 1 ||
+  is.na(transmission_event_tolerance) ||
+  transmission_event_tolerance < 0
+) {
+  
+  stop(
+    "`transmission_event_tolerance` must be one non-negative number."
+  )
+}
+
+
+if (
+  min_consecutive_night_detections < 2
+) {
+  
+  stop(
+    "`min_consecutive_night_detections` must be at least 2."
+  )
+}
+
+
+
+# ==============================================================================
+# 3) HELPER FUNCTIONS
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# clean_dongle_type()
 #
-# Standardizes dongle names from tower metadata.
-# This prevents slightly different labels, such as "RTL-SDR" vs. "RTL",
-# from being treated as separate receiver types.
+# Standardize receiver/dongle names used in tower metadata.
 # ------------------------------------------------------------------------------
 
 clean_dongle_type <- function(x) {
+  
+  x <- as.character(x)
+  
   dplyr::case_when(
+    is.na(x) ~ NA_character_,
     grepl("RTL", x, ignore.case = TRUE) ~ "RTL",
-    grepl("Funcube", x, ignore.case = TRUE) ~ "Funcube",
+    grepl("FUNcube|Funcube", x, ignore.case = TRUE) ~ "FUNcube",
     grepl("Sigma", x, ignore.case = TRUE) ~ "SigmaEight",
     TRUE ~ x
   )
 }
 
 
+
 # ------------------------------------------------------------------------------
-# Helper: get_local_timezone()
+# standardize_tower_metadata()
 #
-# Dynamically find timezone based on lat/long information.
+# Prepare receiver metadata for downstream processing.
+#
+# In CSV files, optional columns containing only blank/NA values may be read as
+# logical instead of character. Converting these fields here prevents failures
+# when receivers do not have a second hardware system.
 # ------------------------------------------------------------------------------
+
+standardize_tower_metadata <- function(tower_metadata) {
+  
+  required_primary_cols <- c(
+    "recvDeployName",
+    "DongleType_1",
+    "System1"
+  )
+  
+  missing_primary_cols <- setdiff(
+    required_primary_cols,
+    names(tower_metadata)
+  )
+  
+  if (length(missing_primary_cols) > 0) {
+    
+    stop(
+      "Tower metadata are missing required column(s): ",
+      paste(
+        missing_primary_cols,
+        collapse = ", "
+      )
+    )
+  }
+  
+  
+  # Optional receiver-era columns.
+  # Create them when they are absent entirely.
+  
+  optional_cols <- c(
+    "DongleType_2",
+    "System2",
+    "System1End"
+  )
+  
+  for (nm in optional_cols) {
+    
+    if (!nm %in% names(tower_metadata)) {
+      
+      tower_metadata[[nm]] <- NA_character_
+    }
+  }
+  
+  
+  # Receiver hardware fields must remain character even when every value is NA.
+  
+  character_cols <- c(
+    "recvDeployName",
+    "DongleType_1",
+    "DongleType_2",
+    "System1",
+    "System2",
+    "System1End"
+  )
+  
+  
+  tower_metadata <- tower_metadata %>%
+    mutate(
+      across(
+        all_of(character_cols),
+        as.character
+      )
+    ) %>%
+    mutate(
+      across(
+        all_of(character_cols),
+        ~ na_if(trimws(.x), "")
+      )
+    )
+  
+  
+  tower_metadata
+}
+
+
+
+# ------------------------------------------------------------------------------
+# get_local_timezone()
+#
+# Determine the local IANA timezone from deployment coordinates.
+# ------------------------------------------------------------------------------
+
 get_local_timezone <- function(lat, lon) {
+  
+  if (
+    length(lat) != 1 ||
+    length(lon) != 1 ||
+    is.na(lat) ||
+    is.na(lon)
+  ) {
+    
+    stop(
+      "Valid deployment latitude and longitude are required."
+    )
+  }
+  
   
   tz_local <- lutz::tz_lookup_coords(
     lat = lat,
@@ -178,259 +490,404 @@ get_local_timezone <- function(lat, lon) {
     method = "accurate"
   )
   
-  if (length(tz_local) != 1 || is.na(tz_local)) {
+  
+  if (
+    length(tz_local) != 1 ||
+    is.na(tz_local) ||
+    tz_local == ""
+  ) {
+    
     stop(
-      "❌ Could not determine timezone from coordinates: lat = ",
-      lat, ", lon = ", lon
+      "Could not determine timezone from coordinates: ",
+      "lat = ", lat,
+      ", lon = ", lon
     )
   }
+  
   
   tz_local
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: get_deployment_duty_cycle()
+# get_deployment_duty_cycle()
 #
-# Dynamically put duty cycle/burt interval for each specific tag, rather than using
-# a global duty cycle for all tags in a project.
+# Retrieve the programmed transmitter burst interval from deployment metadata.
 # ------------------------------------------------------------------------------
-get_deployment_duty_cycle <- function(bird_row, duty_cycle_col = "Burst_Interval") {
+
+get_deployment_duty_cycle <- function(
+    bird_row,
+    duty_cycle_col
+) {
   
   if (!duty_cycle_col %in% names(bird_row)) {
+    
     stop(
-      "❌ Missing required duty-cycle column in bird metadata: ",
+      "Missing required burst-interval column in deployment metadata: ",
       duty_cycle_col
     )
   }
   
-  duty_value <- suppressWarnings(as.numeric(bird_row[[duty_cycle_col]][1]))
   
-  if (is.na(duty_value) || duty_value <= 0) {
+  duty_value <- suppressWarnings(
+    as.numeric(
+      bird_row[[duty_cycle_col]][1]
+    )
+  )
+  
+  
+  if (
+    is.na(duty_value) ||
+    duty_value <= 0
+  ) {
+    
+    band_label <- if (
+      "Band" %in% names(bird_row)
+    ) {
+      bird_row$Band[1]
+    } else {
+      "unknown"
+    }
+    
+    
     stop(
-      "❌ Invalid duty cycle for Band ",
-      bird_row$Band,
-      ". Check ", duty_cycle_col, " in bird metadata."
+      "Invalid burst interval for Band ",
+      band_label,
+      ". Check `",
+      duty_cycle_col,
+      "` in deployment metadata."
     )
   }
+  
   
   duty_value
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: build_receiver_eras()
+# build_receiver_eras()
 #
-# Converts tower metadata into a long-format table where each receiver has one
-# row per hardware era.
+# Convert tower metadata to one row per receiver hardware era.
 #
-# A receiver era is a period when the tower hardware/system was consistent.
-# If a tower changed from System1 to System2, the first era ends on System1End
-# and the second era starts the next day.
-#
-# This matters because receiver hardware can affect signal strength, noise,
-# and detection behavior. Thresholds should not combine detections across
-# different hardware configurations.
+# Era 1 begins before the study and ends on System1End when a hardware change
+# occurred. Era 2 begins the following day.
 # ------------------------------------------------------------------------------
 
 build_receiver_eras <- function(tower_metadata) {
-  tower_metadata %>%
+  
+  tower_metadata <- standardize_tower_metadata(
+    tower_metadata
+  )
+  
+  
+  tower_metadata <- tower_metadata %>%
     mutate(
-      DongleType_1_clean = clean_dongle_type(DongleType_1),
-      DongleType_2_clean = clean_dongle_type(DongleType_2),
-      System1End = as.Date(lubridate::parse_date_time(
-        System1End,
-        orders = c("ymd", "mdy", "dmy")
-      ))
-      ) %>%
-    {
-      bind_rows(
-        transmute(
-          .,
-          recvDeployName,
-          DongleType_clean = DongleType_1_clean,
-          System = System1,
-          start_date = as.Date("1900-01-01"),
-          end_date = coalesce(System1End, as.Date("2100-12-31"))
-        ),
-        filter(., !is.na(System2)) %>%
-          transmute(
-            recvDeployName,
-            DongleType_clean = DongleType_2_clean,
-            System = System2,
-            start_date = System1End + lubridate::days(1),
-            end_date = as.Date("2100-12-31")
-          )
+      DongleType_1_clean = clean_dongle_type(
+        DongleType_1
+      ),
+      DongleType_2_clean = clean_dongle_type(
+        DongleType_2
+      ),
+      System1End = as.Date(
+        lubridate::parse_date_time(
+          System1End,
+          orders = c(
+            "ymd",
+            "mdy",
+            "dmy"
+          ),
+          quiet = TRUE
+        )
       )
-    } %>%
+    )
+  
+  
+  invalid_second_era <- tower_metadata %>%
+    filter(
+      !is.na(System2),
+      is.na(System1End)
+    )
+  
+  
+  if (nrow(invalid_second_era) > 0) {
+    
+    stop(
+      "At least one receiver has `System2` but no valid `System1End` date.\n",
+      "A hardware-change date is required when a second receiver system is supplied."
+    )
+  }
+  
+  
+  era_1 <- tower_metadata %>%
+    transmute(
+      recvDeployName,
+      DongleType_clean = DongleType_1_clean,
+      System = System1,
+      start_date = as.Date("1900-01-01"),
+      end_date = dplyr::coalesce(
+        System1End,
+        as.Date("2100-12-31")
+      )
+    )
+  
+  
+  era_2 <- tower_metadata %>%
+    filter(
+      !is.na(System2)
+    ) %>%
+    transmute(
+      recvDeployName,
+      DongleType_clean = DongleType_2_clean,
+      System = System2,
+      start_date = System1End + lubridate::days(1),
+      end_date = as.Date("2100-12-31")
+    )
+  
+  
+  bind_rows(
+    era_1,
+    era_2
+  ) %>%
+    filter(
+      !is.na(recvDeployName),
+      !is.na(DongleType_clean),
+      !is.na(System)
+    ) %>%
     mutate(
-      tower_type = paste(DongleType_clean, System, sep = "_")
+      tower_type = paste(
+        DongleType_clean,
+        System,
+        sep = "_"
+      )
     )
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: parse_individual_folders()
+# parse_individual_folders()
 #
-# Reads the individual-bird folder names and extracts identifiers from them.
+# Parse Step 1 output folders.
 #
-# Expected folder naming convention:
-#   <MotusTagID>_<mfgID>_<state>_<downloadID>_MotusFiltered
+# Expected format:
 #
-# The script keeps the most recent downloadID for each MotusTagID × mfgID_base.
+# <MotusTagID>_<mfgID>_<dataset_label>_<MMDDYY>_MotusFiltered
+#
+# dataset_label may contain underscores.
 # ------------------------------------------------------------------------------
 
 parse_individual_folders <- function(root_dir) {
-  list.dirs(root_dir, recursive = FALSE) %>%
-    tibble(folder = .) %>%
-    mutate(
-      folder_name = basename(folder),
-      parts = strsplit(folder_name, "_")
+  
+  folders <- list.dirs(
+    root_dir,
+    recursive = FALSE,
+    full.names = TRUE
+  )
+  
+  
+  if (length(folders) == 0) {
+    
+    return(
+      tibble::tibble()
+    )
+  }
+  
+  
+  folder_info <- tibble::tibble(
+    folder = folders,
+    folder_name = basename(folders)
+  ) %>%
+    tidyr::extract(
+      folder_name,
+      into = c(
+        "MotusTagID",
+        "mfgID_raw",
+        "dataset_label",
+        "downloadID"
+      ),
+      regex = "^([^_]+)_([^_]+)_(.+)_([0-9]{6})_MotusFiltered$",
+      remove = FALSE
     ) %>%
-    filter(lengths(parts) >= 4) %>%
-    mutate(
-      MotusTagID = as.numeric(map_chr(parts, 1)),
-      mfgID_raw = map_chr(parts, 2),
-      mfgID_base = stringr::str_remove(mfgID_raw, "\\..*$"),
-      state = map_chr(parts, 3),
-      downloadID = as.numeric(map_chr(parts, 4))
+    filter(
+      !is.na(MotusTagID),
+      !is.na(downloadID)
     ) %>%
-    group_by(MotusTagID, mfgID_base) %>%
-    slice_max(downloadID, n = 1) %>%
+    mutate(
+      MotusTagID = as.character(
+        MotusTagID
+      ),
+      mfgID_raw = as.character(
+        mfgID_raw
+      ),
+      mfgID_base = stringr::str_remove(
+        mfgID_raw,
+        "\\..*$"
+      ),
+      download_date = suppressWarnings(
+        as.Date(
+          downloadID,
+          format = "%m%d%y"
+        )
+      )
+    )
+  
+  
+  # Step 1 downloads may be repeated over time.
+  # Retain the most recent export for each MotusTagID × mfgID dataset to avoid
+  # duplicating detections contained in successive project downloads.
+  
+  folder_info %>%
+    group_by(
+      MotusTagID,
+      mfgID_base
+    ) %>%
+    arrange(
+      desc(download_date),
+      desc(downloadID)
+    ) %>%
+    slice_head(
+      n = 1
+    ) %>%
     ungroup()
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: load_bird_files()
+# load_tag_files()
 #
-# Loads all Motus-filtered files for one MotusTagID × mfgID dataset.
-# This allows seasons/downloads to be combined before threshold estimation.
-#
-# Thresholds are estimated across all available detections for the tag dataset,
-# rather than separately by season, so the baseline is based on as much data as
-# possible.
+# Load the Step 1 RDS file contained in each selected tag folder.
 # ------------------------------------------------------------------------------
 
-load_bird_files <- function(bird_folders, MotusTagID, bird_row) {
-  purrr::map_dfr(bird_folders, function(data_dir) {
-    parts <- strsplit(basename(data_dir), "_")[[1]]
-    
-    mfgID_raw <- parts[2]
-    state <- parts[3]
-    downloadID <- parts[4]
-    
-    file_name <- paste0(
-      MotusTagID, "_", mfgID_raw, "_", state, "_",
-      downloadID, "_MotusFiltered.RDS"
-    )
-    
-    file_path <- file.path(data_dir, file_name)
-    
-    if (!file.exists(file_path)) {
-      message("  Skipping missing file: ", file_path)
-      return(NULL)
+load_tag_files <- function(
+    tag_folders,
+    bird_row
+) {
+  
+  purrr::map_dfr(
+    tag_folders,
+    function(data_dir) {
+      
+      candidate_files <- list.files(
+        data_dir,
+        pattern = "_MotusFiltered\\.RDS$",
+        full.names = TRUE
+      )
+      
+      
+      if (length(candidate_files) == 0) {
+        
+        message(
+          "  Skipping folder with no MotusFiltered RDS: ",
+          data_dir
+        )
+        
+        return(
+          NULL
+        )
+      }
+      
+      
+      if (length(candidate_files) > 1) {
+        
+        warning(
+          "More than one MotusFiltered RDS was found in:\n",
+          data_dir,
+          "\nUsing the first file."
+        )
+      }
+      
+      
+      readRDS(
+        candidate_files[1]
+      ) %>%
+        mutate(
+          season = bird_row$Year[1]
+        )
     }
-    
-    readRDS(file_path) %>%
-      mutate(
-        season = bird_row$Year[1],
-        state = state
-      )
-  })
+  )
 }
 
-# ------------------------------------------------------------------------------
-# Helper: clean_and_select_strongest_detections()
-#
-# Collapses detections that occur within a short time window on the same receiver.
-# When duplicates occur, the strongest signal is retained.
-#
-# This reduces the chance that repeated detections from the same tag detection
-# are treated as independent observations.
-# ------------------------------------------------------------------------------
-
-clean_and_select_strongest_detections <- function(data, duty_cycle, tolerance) {
-  
-  tz_local <- attr(data$date_time_local, "tzone")
-  
-  if (is.null(tz_local) || is.na(tz_local) || tz_local == "") {
-    tz_local <- "UTC"
-  }
-  
-  data %>%
-    mutate(
-      time_num = as.numeric(date_time_local),
-      duty_align = round(time_num / duty_cycle) * duty_cycle,
-      duty_time = as.POSIXct(
-        duty_align,
-        origin = "1970-01-01",
-        tz = tz_local
-      )
-    ) %>%
-    group_by(duty_time, recvDeployName) %>%
-    slice_max(sig, n = 1, with_ties = FALSE) %>%
-    ungroup() %>%
-    group_by(duty_time) %>%
-    slice_max(sig, n = 1, with_ties = FALSE) %>%
-    ungroup() %>%
-    mutate(
-      date_time_local = duty_time,
-      duty_cycle = duty_cycle
-    ) %>%
-    select(-time_num, -duty_align, -duty_time)
-}
 
 # ------------------------------------------------------------------------------
-# Helper: get_tower_parameters()
+# get_tower_parameters()
 #
-# Retrieves receiver-specific timing tolerance and S2N cutoff based on dongle type.
-#
-# S2N means signal-to-noise ratio, calculated as sig - noise.
-# Low-S2N detections are more likely to reflect poor signal quality, where the
-# tag signal is weak or difficult to distinguish from background noise.
+# Retrieve the SNR cutoff associated with a receiver hardware configuration.
 # ------------------------------------------------------------------------------
 
-get_tower_parameters <- function(top_receiver, era_tower, tower_metadata_long, parameter_lookup) {
+get_tower_parameters <- function(
+    top_receiver,
+    era_tower,
+    tower_metadata_long,
+    parameter_lookup
+) {
+  
   tower_metadata_long %>%
     filter(
       recvDeployName == top_receiver,
       tower_type == era_tower
     ) %>%
-    slice_head(n = 1) %>%
-    left_join(parameter_lookup, by = c("DongleType_clean" = "DongleType"))
+    slice_head(
+      n = 1
+    ) %>%
+    left_join(
+      parameter_lookup,
+      by = c(
+        "DongleType_clean" = "DongleType"
+      )
+    )
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: calculate_signal_metrics()
+# calculate_signal_metrics()
 #
-# Calculates signal differences only for valid consecutive detections.
+# Calculate signal changes for valid pairs of consecutive transmission events.
 #
-# A pair of detections is valid when:
-#   1. The time gap is close to the expected duty cycle
-#   2. Both detections have adequate S2N
-#   3. A previous signal value exists
-#
-# Signal differences are first calculated in dB, then converted to proportional
-# signal ratios. Ratio-based change is used because it compares relative change
-# between detections and partially reduces distance-related bias.
+# A pair is valid when:
+#   • the elapsed time is within the allowed tolerance of the programmed
+#     transmitter burst interval
+#   • both detections exceed the receiver-specific SNR cutoff
 # ------------------------------------------------------------------------------
 
-calculate_signal_metrics <- function(data, duty_cycle, tolerance, S2N_cutoff) {
+calculate_signal_metrics <- function(
+    data,
+    duty_cycle,
+    timing_tolerance,
+    SNR_cutoff
+) {
+  
   data %>%
-    arrange(date_time_local) %>%
+    arrange(
+      date_time_local
+    ) %>%
     mutate(
-      S2N = sig - noise,
-      lag_S2N = lag(S2N),
-      sig_lag = lag(sig),
-      time_num = as.numeric(date_time_local),
-      lag_time_num = lag(time_num),
-      time_dif = time_num - lag_time_num,
+      SNR = sig - noise,
+      lag_SNR = lag(
+        SNR
+      ),
+      sig_lag = lag(
+        sig
+      ),
+      time_numeric = as.numeric(
+        date_time_local
+      ),
+      lag_time_numeric = lag(
+        time_numeric
+      ),
+      time_dif = time_numeric - lag_time_numeric,
       
       sig_diff = if_else(
         !is.na(time_dif) &
           !is.na(sig_lag) &
-          abs(time_dif - duty_cycle) <= tolerance &
-          !is.na(S2N) &
-          !is.na(lag_S2N) &
-          S2N >= S2N_cutoff &
-          lag_S2N >= S2N_cutoff,
+          abs(time_dif - duty_cycle) <= timing_tolerance &
+          !is.na(SNR) &
+          !is.na(lag_SNR) &
+          SNR >= SNR_cutoff &
+          lag_SNR >= SNR_cutoff,
         sig - sig_lag,
         NA_real_
       ),
@@ -442,173 +899,254 @@ calculate_signal_metrics <- function(data, duty_cycle, tolerance, S2N_cutoff) {
       ),
       
       ln_sig_ratio = if_else(
-        !is.na(sig_ratio) & sig_ratio > 0,
-        log(sig_ratio),
+        !is.na(sig_ratio) &
+          sig_ratio > 0,
+        log(
+          sig_ratio
+        ),
         NA_real_
       )
     )
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: has_enough_consecutive_night_detections()
+# has_enough_consecutive_night_detections()
 #
-# Checks whether nighttime baseline detections include at least one long enough
-# consecutive run.
-#
-# This prevents unstable thresholds from being estimated from sparse nighttime
-# detections or isolated fragments.
+# Confirm that at least one nighttime sequence contains the required number of
+# consecutive detections.
 # ------------------------------------------------------------------------------
 
 has_enough_consecutive_night_detections <- function(
     night_baseline_data,
     duty_cycle,
-    tolerance,
+    timing_tolerance,
     min_consecutive_night_detections
 ) {
-  if (nrow(night_baseline_data) == 0) return(FALSE)
   
-  max_gap <- duty_cycle + tolerance
-  
-  run_id <- cumsum(
-    c(1, diff(as.numeric(night_baseline_data$date_time_local)) > max_gap)
-  )
-  
-  consecutive_runs <- night_baseline_data %>%
-    mutate(run_id = run_id) %>%
-    group_by(run_id) %>%
-    summarise(n = n(), .groups = "drop")
-  
-  max(consecutive_runs$n, na.rm = TRUE) >= min_consecutive_night_detections
-}
-
-# ------------------------------------------------------------------------------
-# Helper: count_night_runs()
-#
-# Counts nighttime detection runs that are at least a specified length.
-# This is used only for plotting annotations and quality control summaries.
-# ------------------------------------------------------------------------------
-
-count_night_runs <- function(df_night, duty_cycle, tolerance, min_run_length = 15) {
-  if (nrow(df_night) == 0) return(0)
-  
-  max_gap <- duty_cycle + tolerance
-  
-  run_id <- cumsum(c(1, diff(as.numeric(df_night$date_time_local)) > max_gap))
-  
-  df_night %>%
-    mutate(run_id = run_id) %>%
-    group_by(run_id) %>%
-    summarise(n = n(), .groups = "drop") %>%
-    summarise(n_runs = sum(n >= min_run_length, na.rm = TRUE)) %>%
-    pull(n_runs)
-}
-
-# ------------------------------------------------------------------------------
-# Helper: calculate_thresholds()
-#
-# Estimates lower and upper activity thresholds from nighttime baseline data.
-#
-# The median signal ratio represents the center of presumed inactive signal
-# variation. The median is used instead of the mean because it is less affected
-# by occasional noisy detections or brief movements.
-#
-# The spread is estimated from ln_sig_ratio. Thresholds are then calculated as
-# median_ratio × exp(± threshold_sd_multiplier × sigma_ln).
-# ------------------------------------------------------------------------------
-
-calculate_thresholds <- function(night_baseline_data, threshold_sd_multiplier) {
-  median_ratio <- median(night_baseline_data$sig_ratio, na.rm = TRUE)
-  sigma_ln <- sd(night_baseline_data$ln_sig_ratio, na.rm = TRUE)
-  
-  if (is.na(median_ratio) || is.na(sigma_ln) || sigma_ln == 0) {
-    return(NULL)
+  if (nrow(night_baseline_data) == 0) {
+    
+    return(
+      FALSE
+    )
   }
   
-  lower_ratio <- median_ratio * exp(-threshold_sd_multiplier * sigma_ln)
-  upper_ratio <- median_ratio * exp( threshold_sd_multiplier * sigma_ln)
+  
+  max_gap <- duty_cycle + timing_tolerance
+  
+  
+  run_id <- cumsum(
+    c(
+      1,
+      diff(
+        as.numeric(
+          night_baseline_data$date_time_local
+        )
+      ) > max_gap
+    )
+  )
+  
+  
+  consecutive_runs <- night_baseline_data %>%
+    mutate(
+      run_id = run_id
+    ) %>%
+    group_by(
+      run_id
+    ) %>%
+    summarise(
+      n = n(),
+      .groups = "drop"
+    )
+  
+  
+  max(
+    consecutive_runs$n,
+    na.rm = TRUE
+  ) >= min_consecutive_night_detections
+}
+
+
+
+# ------------------------------------------------------------------------------
+# count_night_runs()
+#
+# Count nighttime sequences meeting the minimum consecutive-detection length.
+# Used only for diagnostics.
+# ------------------------------------------------------------------------------
+
+count_night_runs <- function(
+    df_night,
+    duty_cycle,
+    timing_tolerance,
+    min_run_length
+) {
+  
+  if (nrow(df_night) == 0) {
+    
+    return(
+      0
+    )
+  }
+  
+  
+  max_gap <- duty_cycle + timing_tolerance
+  
+  
+  run_id <- cumsum(
+    c(
+      1,
+      diff(
+        as.numeric(
+          df_night$date_time_local
+        )
+      ) > max_gap
+    )
+  )
+  
+  
+  df_night %>%
+    mutate(
+      run_id = run_id
+    ) %>%
+    group_by(
+      run_id
+    ) %>%
+    summarise(
+      n = n(),
+      .groups = "drop"
+    ) %>%
+    summarise(
+      n_runs = sum(
+        n >= min_run_length,
+        na.rm = TRUE
+      )
+    ) %>%
+    pull(
+      n_runs
+    )
+}
+
+
+
+# ------------------------------------------------------------------------------
+# calculate_thresholds()
+#
+# Estimate lower and upper proportional signal-change thresholds.
+# ------------------------------------------------------------------------------
+
+calculate_thresholds <- function(
+    night_baseline_data,
+    threshold_sd_multiplier
+) {
+  
+  median_ratio <- median(
+    night_baseline_data$sig_ratio,
+    na.rm = TRUE
+  )
+  
+  
+  sigma_ln <- sd(
+    night_baseline_data$ln_sig_ratio,
+    na.rm = TRUE
+  )
+  
+  
+  if (
+    is.na(median_ratio) ||
+    is.na(sigma_ln) ||
+    sigma_ln == 0
+  ) {
+    
+    return(
+      NULL
+    )
+  }
+  
+  
+  lower_ratio <- median_ratio *
+    exp(
+      -threshold_sd_multiplier *
+        sigma_ln
+    )
+  
+  
+  upper_ratio <- median_ratio *
+    exp(
+      threshold_sd_multiplier *
+        sigma_ln
+    )
+  
   
   list(
     lower_ratio = lower_ratio,
     upper_ratio = upper_ratio,
-    lower_db = 10 * log10(lower_ratio),
-    upper_db = 10 * log10(upper_ratio),
+    lower_db = 10 * log10(
+      lower_ratio
+    ),
+    upper_db = 10 * log10(
+      upper_ratio
+    ),
     median_ratio = median_ratio,
     sigma_ln = sigma_ln
   )
 }
 
+
+
 # ------------------------------------------------------------------------------
-# Helper: classify_threshold_activity()
+# make_threshold_summary_table()
 #
-# Applies the proportional thresholds to flag preliminary activity.
-#
-# A detection is flagged as active only when:
-#   1. Its proportional signal change falls outside the threshold envelope, and
-#   2. Its signal quality meets the S2N cutoff.
-#
-# This is a preliminary activity flag used during threshold evaluation.
-# The full activity classification in the later script also considers antenna
-# switching, receiver switching, and dropout correction.
+# Flatten the threshold-results list to one row per tag × receiver era.
 # ------------------------------------------------------------------------------
 
-classify_threshold_activity <- function(data, thresholds, S2N_cutoff) {
-  data %>%
-    mutate(
-      movement_ratio = if_else(
-        !is.na(sig_ratio) &
-          (sig_ratio < thresholds$lower_ratio | sig_ratio > thresholds$upper_ratio),
-        TRUE,
-        FALSE,
-        missing = FALSE
+make_threshold_summary_table <- function(
+    all_results
+) {
+  
+  purrr::imap_dfr(
+    all_results,
+    ~ tibble::tibble(
+      bird = .x$bird,
+      duty_cycle = .x$duty_cycle,
+      top_receiver = .x$recvDeployName,
+      tower_type = .x$tower_type,
+      receiver_era_start_date = as.Date(
+        .x$receiver_era_start_date
+      ),
+      receiver_era_end_date = as.Date(
+        .x$receiver_era_end_date
       ),
       
-      active_logic = if_else(
-        !is.na(S2N) & S2N >= S2N_cutoff,
-        TRUE,
-        FALSE,
-        missing = FALSE
-      ),
+      lower_ratio = .x$thresholds$lower_ratio,
+      upper_ratio = .x$thresholds$upper_ratio,
+      lower_db = .x$thresholds$lower_db,
+      upper_db = .x$thresholds$upper_db,
+      median_ratio = .x$thresholds$median_ratio,
+      sigma_ln = .x$thresholds$sigma_ln,
       
-      active = movement_ratio & active_logic
+      pct_within_threshold =
+        .x$pct_within_threshold$pct_within,
+      
+      sample_size =
+        .x$sample_size,
+      
+      pct_active =
+        mean(
+          .x$data_final$active,
+          na.rm = TRUE
+        ) * 100
     )
+  )
 }
 
-# ------------------------------------------------------------------------------
-# Helper: make_threshold_summary_table()
-#
-# Converts the nested all_results list into a flat summary table.
-# Each row represents one bird × receiver era threshold estimate.
-# ------------------------------------------------------------------------------
 
-make_threshold_summary_table <- function(all_results) {
-  purrr::imap_dfr(all_results, ~ tibble(
-    bird = .x$bird,
-    duty_cycle = .x$duty_cycle,
-    top_receiver = .x$recvDeployName,
-    tower_type = .x$tower_type,
-    receiver_era_start_date = as.Date(.x$receiver_era_start_date),
-    receiver_era_end_date = as.Date(.x$receiver_era_end_date),
-    
-    lower_ratio = .x$thresholds$lower_ratio,
-    upper_ratio = .x$thresholds$upper_ratio,
-    lower_db = .x$thresholds$lower_db,
-    upper_db = .x$thresholds$upper_db,
-    median_ratio = .x$thresholds$median_ratio,
-    sigma_ln = .x$thresholds$sigma_ln,
-    
-    pct_within_threshold = .x$pct_within_threshold$pct_within,
-    sample_size = .x$sample_size,
-    pct_active = mean(.x$data_final$active, na.rm = TRUE) * 100
-  ))
-}
 
 # ------------------------------------------------------------------------------
-# Helper: save_threshold_histograms()
+# save_threshold_histograms()
 #
-# Saves all threshold histograms to one folder: threshold_hist_plots.
-#
-# This function automatically uses the receivers and tower types present in the
-# threshold results. No tower names or tower types need to be entered manually.
+# Save individual and combined threshold diagnostic histograms.
 # ------------------------------------------------------------------------------
 
 save_threshold_histograms <- function(
@@ -618,109 +1156,239 @@ save_threshold_histograms <- function(
     min_consecutive_night_detections
 ) {
   
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(
+    output_dir,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
   
-  combined_df <- purrr::imap_dfr(all_signal_data_for_plots, ~ {
-    .x %>%
-      filter(is.finite(sig_diff))
-  })
   
-  threshold_df <- purrr::imap_dfr(all_results, ~ {
-    res <- .x
-    
-    tibble(
-      bird = res$bird,
-      top_receiver = res$recvDeployName,
-      tower_type = res$tower_type,
-      receiver_era_start_date = res$receiver_era_start_date,
-      receiver_era_end_date = res$receiver_era_end_date,
-      lower_db = res$thresholds$lower_db,
-      upper_db = res$thresholds$upper_db
-    )
-  })
+  combined_df <- purrr::imap_dfr(
+    all_signal_data_for_plots,
+    ~ .x %>%
+      filter(
+        is.finite(
+          sig_diff
+        )
+      )
+  )
+  
+  
+  threshold_df <- purrr::imap_dfr(
+    all_results,
+    ~ {
+      
+      res <- .x
+      
+      tibble::tibble(
+        bird = res$bird,
+        top_receiver = res$recvDeployName,
+        tower_type = res$tower_type,
+        receiver_era_start_date =
+          res$receiver_era_start_date,
+        receiver_era_end_date =
+          res$receiver_era_end_date,
+        lower_db =
+          res$thresholds$lower_db,
+        upper_db =
+          res$thresholds$upper_db
+      )
+    }
+  )
+  
   
   if (nrow(combined_df) == 0) {
-    message("⚠️ No finite sig_diff values available for threshold histograms.")
-    return(invisible(NULL))
+    
+    message(
+      "⚠️ No finite signal differences were available for threshold histograms."
+    )
+    
+    return(
+      invisible(NULL)
+    )
   }
   
+  
   # ---------------------------------------------------------------------------
-  # 1) Individual bird × receiver-era histograms
+  # Individual tag × receiver-era histograms
   # ---------------------------------------------------------------------------
   
   for (result_name in names(all_results)) {
     
     res <- all_results[[result_name]]
     
-    df_plot <- res$data_final %>%
-      filter(is.finite(sig_diff))
     
-    if (nrow(df_plot) == 0) next
+    df_plot <- res$data_final %>%
+      filter(
+        is.finite(
+          sig_diff
+        )
+      )
+    
+    
+    if (nrow(df_plot) == 0) {
+      
+      next
+    }
+    
     
     lower_db <- res$thresholds$lower_db
     upper_db <- res$thresholds$upper_db
     
+    
     df_night <- df_plot %>%
-      filter(timing %in% c("night_1", "night_2"))
+      filter(
+        timing %in% c(
+          "night_1",
+          "night_2"
+        )
+      )
+    
     
     night_stats <- df_night %>%
       summarise(
         n_total = n(),
-        n_within = sum(sig_diff >= lower_db & sig_diff <= upper_db, na.rm = TRUE),
-        n_outside = sum(sig_diff < lower_db | sig_diff > upper_db, na.rm = TRUE)
+        n_within = sum(
+          sig_diff >= lower_db &
+            sig_diff <= upper_db,
+          na.rm = TRUE
+        ),
+        n_outside = sum(
+          sig_diff < lower_db |
+            sig_diff > upper_db,
+          na.rm = TRUE
+        )
       )
+    
     
     pct_within_night <- ifelse(
       night_stats$n_total > 0,
-      night_stats$n_within / night_stats$n_total * 100,
+      night_stats$n_within /
+        night_stats$n_total *
+        100,
       NA_real_
     )
+    
     
     pct_outside_night <- ifelse(
       night_stats$n_total > 0,
-      night_stats$n_outside / night_stats$n_total * 100,
+      night_stats$n_outside /
+        night_stats$n_total *
+        100,
       NA_real_
     )
     
+    
     runs_ge_min <- count_night_runs(
       df_night = df_night,
-      duty_cycle = unique(df_plot$duty_cycle)[1],
-      tolerance = unique(df_plot$tolerance)[1],
-      min_run_length = min_consecutive_night_detections
+      duty_cycle = unique(
+        df_plot$duty_cycle
+      )[1],
+      timing_tolerance = unique(
+        df_plot$tolerance
+      )[1],
+      min_run_length =
+        min_consecutive_night_detections
     )
+    
     
     subtitle_text <- paste0(
-      "Receiver: ", res$recvDeployName, " | Tower type: ", res$tower_type, "\n",
-      "Era: ", res$receiver_era_start_date, " to ", res$receiver_era_end_date, "\n",
-      "Sample size: ", nrow(df_plot), " | ",
-      "Night within: ", round(pct_within_night, 1), "% | ",
-      "Night outside: ", round(pct_outside_night, 1), "% | ",
-      "Night runs ≥", min_consecutive_night_detections, ": ", runs_ge_min, "\n",
-      "Lower: ", round(lower_db, 2), " dB | ",
-      "Upper: ", round(upper_db, 2), " dB"
+      "Receiver: ",
+      res$recvDeployName,
+      " | Receiver type: ",
+      res$tower_type,
+      "\nEra: ",
+      res$receiver_era_start_date,
+      " to ",
+      res$receiver_era_end_date,
+      "\nSample size: ",
+      nrow(df_plot),
+      " | Night within: ",
+      round(
+        pct_within_night,
+        1
+      ),
+      "% | Night outside: ",
+      round(
+        pct_outside_night,
+        1
+      ),
+      "% | Night runs ≥",
+      min_consecutive_night_detections,
+      ": ",
+      runs_ge_min,
+      "\nLower: ",
+      round(
+        lower_db,
+        2
+      ),
+      " dB | Upper: ",
+      round(
+        upper_db,
+        2
+      ),
+      " dB"
     )
     
-    p_hist <- ggplot(df_plot, aes(x = sig_diff)) +
-      geom_histogram(bins = 60, fill = "darkseagreen2", color = "black") +
-      geom_vline(xintercept = lower_db, linetype = "dashed", linewidth = 1) +
-      geom_vline(xintercept = upper_db, linetype = "dashed", linewidth = 1) +
+    
+    p_hist <- ggplot(
+      df_plot,
+      aes(
+        x = sig_diff
+      )
+    ) +
+      geom_histogram(
+        bins = 60
+      ) +
+      geom_vline(
+        xintercept = lower_db,
+        linetype = "dashed",
+        linewidth = 1
+      ) +
+      geom_vline(
+        xintercept = upper_db,
+        linetype = "dashed",
+        linewidth = 1
+      ) +
       labs(
-        title = paste0("sig_diff Histogram — Bird ", res$bird),
+        title = paste0(
+          "Signal-change distribution — ",
+          res$bird
+        ),
         subtitle = subtitle_text,
-        x = "sig_diff (dB)",
+        x = "Signal-strength change (dB)",
         y = "Count"
       ) +
       theme_bw() +
       theme(
-        plot.subtitle = element_text(size = 9, lineheight = 1.1)
+        plot.subtitle = element_text(
+          size = 9,
+          lineheight = 1.1
+        )
       )
     
-    safe_receiver <- stringr::str_replace_all(res$recvDeployName, "[^A-Za-z0-9]+", "_")
-    safe_tower_type <- stringr::str_replace_all(res$tower_type, "[^A-Za-z0-9]+", "_")
+    
+    safe_receiver <- stringr::str_replace_all(
+      res$recvDeployName,
+      "[^A-Za-z0-9]+",
+      "_"
+    )
+    
+    
+    safe_tower_type <- stringr::str_replace_all(
+      res$tower_type,
+      "[^A-Za-z0-9]+",
+      "_"
+    )
+    
     
     ggsave(
       filename = paste0(
-        res$bird, "_", safe_receiver, "_", safe_tower_type,
+        res$bird,
+        "_",
+        safe_receiver,
+        "_",
+        safe_tower_type,
         "_threshold_histogram.png"
       ),
       plot = p_hist,
@@ -730,17 +1398,32 @@ save_threshold_histograms <- function(
     )
   }
   
+  
   # ---------------------------------------------------------------------------
-  # 2) Combined histograms by receiver × tower type
+  # Combined histograms by receiver × receiver type
   # ---------------------------------------------------------------------------
   
   receiver_groups <- combined_df %>%
-    distinct(top_receiver, tower_type)
+    distinct(
+      top_receiver,
+      tower_type
+    )
   
-  for (j in seq_len(nrow(receiver_groups))) {
+  
+  for (
+    j in seq_len(
+      nrow(
+        receiver_groups
+      )
+    )
+  ) {
     
-    receiver_name <- receiver_groups$top_receiver[j]
-    tower_type_name <- receiver_groups$tower_type[j]
+    receiver_name <-
+      receiver_groups$top_receiver[j]
+    
+    tower_type_name <-
+      receiver_groups$tower_type[j]
+    
     
     df_receiver <- combined_df %>%
       filter(
@@ -748,7 +1431,12 @@ save_threshold_histograms <- function(
         tower_type == tower_type_name
       )
     
-    if (nrow(df_receiver) == 0) next
+    
+    if (nrow(df_receiver) == 0) {
+      
+      next
+    }
+    
     
     receiver_thresholds <- threshold_df %>%
       filter(
@@ -756,13 +1444,33 @@ save_threshold_histograms <- function(
         tower_type == tower_type_name
       )
     
-    if (nrow(receiver_thresholds) == 0) next
     
-    median_lower <- median(receiver_thresholds$lower_db, na.rm = TRUE)
-    median_upper <- median(receiver_thresholds$upper_db, na.rm = TRUE)
+    if (nrow(receiver_thresholds) == 0) {
+      
+      next
+    }
+    
+    
+    median_lower <- median(
+      receiver_thresholds$lower_db,
+      na.rm = TRUE
+    )
+    
+    
+    median_upper <- median(
+      receiver_thresholds$upper_db,
+      na.rm = TRUE
+    )
+    
     
     df_receiver_night <- df_receiver %>%
-      filter(timing %in% c("night_1", "night_2"))
+      filter(
+        timing %in% c(
+          "night_1",
+          "night_2"
+        )
+      )
+    
     
     night_stats <- df_receiver_night %>%
       summarise(
@@ -779,50 +1487,116 @@ save_threshold_histograms <- function(
         )
       )
     
+    
     pct_within_night <- ifelse(
       night_stats$n_total > 0,
-      night_stats$n_within / night_stats$n_total * 100,
+      night_stats$n_within /
+        night_stats$n_total *
+        100,
       NA_real_
     )
+    
     
     pct_outside_night <- ifelse(
       night_stats$n_total > 0,
-      night_stats$n_outside / night_stats$n_total * 100,
+      night_stats$n_outside /
+        night_stats$n_total *
+        100,
       NA_real_
     )
     
+    
     subtitle_text <- paste0(
-      "Receiver: ", receiver_name,
-      " | Tower type: ", tower_type_name, "\n",
-      "Birds included: ", dplyr::n_distinct(df_receiver$bird),
-      " | Total samples: ", nrow(df_receiver), "\n",
-      "Night within: ", round(pct_within_night, 1), "% | ",
-      "Night outside: ", round(pct_outside_night, 1), "%\n",
-      "Median lower threshold: ", round(median_lower, 2), " dB | ",
-      "Median upper threshold: ", round(median_upper, 2), " dB"
+      "Receiver: ",
+      receiver_name,
+      " | Receiver type: ",
+      tower_type_name,
+      "\nTags included: ",
+      dplyr::n_distinct(
+        df_receiver$bird
+      ),
+      " | Total samples: ",
+      nrow(
+        df_receiver
+      ),
+      "\nNight within: ",
+      round(
+        pct_within_night,
+        1
+      ),
+      "% | Night outside: ",
+      round(
+        pct_outside_night,
+        1
+      ),
+      "%\nMedian lower threshold: ",
+      round(
+        median_lower,
+        2
+      ),
+      " dB | Median upper threshold: ",
+      round(
+        median_upper,
+        2
+      ),
+      " dB"
     )
     
-    p_combined <- ggplot(df_receiver, aes(x = sig_diff)) +
-      geom_histogram(bins = 60, fill = "darkolivegreen", color = "black") +
-      geom_vline(xintercept = median_lower, linetype = "dashed", linewidth = 1) +
-      geom_vline(xintercept = median_upper, linetype = "dashed", linewidth = 1) +
+    
+    p_combined <- ggplot(
+      df_receiver,
+      aes(
+        x = sig_diff
+      )
+    ) +
+      geom_histogram(
+        bins = 60
+      ) +
+      geom_vline(
+        xintercept = median_lower,
+        linetype = "dashed",
+        linewidth = 1
+      ) +
+      geom_vline(
+        xintercept = median_upper,
+        linetype = "dashed",
+        linewidth = 1
+      ) +
       labs(
-        title = "Combined sig_diff Histogram",
+        title = "Combined signal-change distribution",
         subtitle = subtitle_text,
-        x = "sig_diff (dB)",
+        x = "Signal-strength change (dB)",
         y = "Count"
       ) +
       theme_bw() +
       theme(
-        plot.subtitle = element_text(size = 9, lineheight = 1.1)
+        plot.subtitle = element_text(
+          size = 9,
+          lineheight = 1.1
+        )
       )
     
-    safe_receiver <- stringr::str_replace_all(receiver_name, "[^A-Za-z0-9]+", "_")
-    safe_tower_type <- stringr::str_replace_all(tower_type_name, "[^A-Za-z0-9]+", "_")
+    
+    safe_receiver <- stringr::str_replace_all(
+      receiver_name,
+      "[^A-Za-z0-9]+",
+      "_"
+    )
+    
+    
+    safe_tower_type <- stringr::str_replace_all(
+      tower_type_name,
+      "[^A-Za-z0-9]+",
+      "_"
+    )
+    
     
     ggsave(
       filename = paste0(
-        "Combined_", safe_receiver, "_", safe_tower_type,
+        "Combined_",
+        safe_receiver,
+        "_",
+        safe_tower_type,
         "_threshold_histogram.png"
       ),
       plot = p_combined,
@@ -832,158 +1606,333 @@ save_threshold_histograms <- function(
     )
   }
   
-  message("✅ Threshold histograms saved to: ", output_dir)
+  
+  message(
+    "✅ Threshold histograms saved to:\n  ",
+    output_dir
+  )
 }
 
+
+
 # ==============================================================================
-# 4) Load metadata and prepare receiver information
+# 4) LOAD AND VALIDATE METADATA
 # ==============================================================================
 
-# Bird metadata links MotusTagID × mfgID to deployment coordinates.
-# Coordinates are needed to assign detections to diel periods using info_fast().
+message(
+  "📘 Loading deployment and receiver metadata..."
+)
 
-Bird_metadata <- readr::read_csv(bird_metadata_path, show_col_types = FALSE)
 
-# Tower metadata identifies receiver hardware and receiver system changes.
-# These data are used to assign each detection to the correct receiver era.
-
-Tower_metadata <- readr::read_csv(
-  tower_metadata_path,
-  locale = readr::locale(encoding = "latin1"),
+Bird_metadata <- readr::read_csv(
+  bird_metadata_path,
   show_col_types = FALSE
 )
 
-# Receiver-specific quality-control parameters.
-# These values define acceptable timing jitter and minimum S2N by dongle type.
 
-parameter_lookup <- tibble::tribble(
-  ~DongleType,  ~tolerance, ~S2N_cutoff,
-  "Funcube",             0.3,          6,
-  "RTL",                 0.3,         10,
-  "SigmaEight",          0.3,         12
+Tower_metadata <- readr::read_csv(
+  tower_metadata_path,
+  locale = readr::locale(
+    encoding = "latin1"
+  ),
+  show_col_types = FALSE
 )
 
-Tower_metadata_long <- build_receiver_eras(Tower_metadata)
 
-# ==============================================================================
-# 5) Parse individual bird/tag folders
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# Validate deployment metadata
+# ------------------------------------------------------------------------------
 
-# Folder names are used to identify MotusTagID, mfgID, state, and download date.
-# The most recent download is retained for each MotusTagID × mfgID_base.
+required_bird_cols <- c(
+  "motusTagID",
+  "mfgID",
+  "Lat",
+  "Lon",
+  required_duty_cycle_col
+)
 
-folder_info <- parse_individual_folders(root_dir)
 
-birds <- folder_info %>%
-  distinct(MotusTagID, mfgID_base)
+missing_bird_cols <- setdiff(
+  required_bird_cols,
+  names(Bird_metadata)
+)
 
-if (nrow(birds) == 0) {
-  stop("❌ No individual bird folders found in root_dir: ", root_dir)
+
+if (length(missing_bird_cols) > 0) {
+  
+  stop(
+    "Deployment metadata are missing required column(s): ",
+    paste(
+      missing_bird_cols,
+      collapse = ", "
+    )
+  )
 }
 
-message("Found ", nrow(birds), " MotusTagID × mfgID datasets.")
+
+Bird_metadata <- Bird_metadata %>%
+  mutate(
+    motusTagID = as.character(
+      motusTagID
+    ),
+    mfgID = as.character(
+      mfgID
+    ),
+    mfgID_base = stringr::str_remove(
+      mfgID,
+      "\\..*$"
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# Standardize receiver metadata and construct hardware eras
+# ------------------------------------------------------------------------------
+
+Tower_metadata <- standardize_tower_metadata(
+  Tower_metadata
+)
+
+
+Tower_metadata_long <- build_receiver_eras(
+  Tower_metadata
+)
+
+
+message(
+  "✅ Metadata loaded and receiver eras prepared."
+)
+
+
 
 # ==============================================================================
-# 6) Calculate thresholds
+# 5) IDENTIFY STEP 1 TAG DATASETS
+# ==============================================================================
+
+folder_info <- parse_individual_folders(
+  root_dir
+)
+
+
+if (nrow(folder_info) == 0) {
+  
+  stop(
+    "No Step 1 MotusFiltered folders were found in:\n",
+    root_dir,
+    "\n\nExpected folder format:\n",
+    "<MotusTagID>_<mfgID>_<dataset_label>_<MMDDYY>_MotusFiltered"
+  )
+}
+
+
+birds <- folder_info %>%
+  distinct(
+    MotusTagID,
+    mfgID_base
+  )
+
+
+message(
+  "✅ Found ",
+  nrow(birds),
+  " unique MotusTagID × mfgID datasets."
+)
+
+
+
+# ==============================================================================
+# 6) CALCULATE ACTIVITY THRESHOLDS
 # ==============================================================================
 
 all_results <- list()
+
 all_signal_data_for_plots <- list()
+
 
 for (i in seq_len(nrow(birds))) {
   
-  MotusTagID <- birds$MotusTagID[i]
-  mfgID_base <- birds$mfgID_base[i]
-  bird_id <- paste0(MotusTagID, "_", mfgID_base)
+  current_MotusTagID <-
+    birds$MotusTagID[i]
   
-  message("\n➡ Processing bird ", bird_id)
+  current_mfgID_base <-
+    birds$mfgID_base[i]
+  
+  bird_id <- paste0(
+    current_MotusTagID,
+    "_",
+    current_mfgID_base
+  )
+  
+  
+  message(
+    "\n➡ Processing tag dataset ",
+    bird_id
+  )
+  
   
   # ---------------------------------------------------------------------------
-  # Identify all folders for this bird/tag dataset.
+  # Identify Step 1 folder
   # ---------------------------------------------------------------------------
   
   bird_folders <- folder_info %>%
     filter(
-      MotusTagID == !!MotusTagID,
-      mfgID_base == !!mfgID_base
+      MotusTagID ==
+        current_MotusTagID,
+      mfgID_base ==
+        current_mfgID_base
     ) %>%
-    pull(folder)
+    pull(
+      folder
+    )
+  
   
   if (length(bird_folders) == 0) {
-    message("  Skipping: no folders found.")
+    
+    message(
+      "  Skipping: no Step 1 folder found."
+    )
+    
     next
   }
   
-  mfgID_raw_vals <- unique(folder_info$mfgID_raw[
-    folder_info$MotusTagID == MotusTagID &
-      folder_info$mfgID_base == mfgID_base
-  ])
-  
-  if (length(mfgID_raw_vals) > 1) {
-    message("  ℹ️ Bird spans multiple raw Motus mfgIDs: ",
-            paste(mfgID_raw_vals, collapse = ", "))
-  }
   
   # ---------------------------------------------------------------------------
-  # Match this tag dataset to bird metadata.
+  # Match deployment metadata
   # ---------------------------------------------------------------------------
   
   bird_row <- Bird_metadata %>%
-    mutate(mfgID_base = as.character(mfgID)) %>%
     filter(
-      motusTagID == !!MotusTagID,
-      mfgID_base == !!mfgID_base
+      motusTagID ==
+        current_MotusTagID,
+      mfgID_base ==
+        current_mfgID_base
     )
   
+  
   if (nrow(bird_row) == 0) {
-    message("  Skipping: no matching bird metadata.")
+    
+    message(
+      "  Skipping: no matching deployment metadata."
+    )
+    
     next
   }
   
-  bird_row <- bird_row[1, ]
+  
+  if (nrow(bird_row) > 1) {
+    
+    message(
+      "  ℹ️ Multiple metadata rows matched; using the first row."
+    )
+  }
+  
+  
+  bird_row <- bird_row[
+    1,
+  ]
+  
+  
+  # ---------------------------------------------------------------------------
+  # Retrieve transmitter and location information
+  # ---------------------------------------------------------------------------
   
   duty_cycle <- get_deployment_duty_cycle(
     bird_row = bird_row,
-    duty_cycle_col = required_duty_cycle_col
+    duty_cycle_col =
+      required_duty_cycle_col
   )
   
-  lat <- bird_row$Lat
-  lon <- bird_row$Lon
+  
+  lat <- as.numeric(
+    bird_row$Lat[1]
+  )
+  
+  lon <- as.numeric(
+    bird_row$Lon[1]
+  )
+  
+  
   local_tz <- get_local_timezone(
     lat = lat,
     lon = lon
   )
   
-  message("  Bird-specific duty cycle: ", duty_cycle, " sec")
   
-  message("  Metadata coordinates: lat = ", lat, ", lon = ", lon)
-  message("  Local timezone: ", local_tz)
+  message(
+    "  Burst interval: ",
+    duty_cycle,
+    " s"
+  )
+  
+  message(
+    "  Local timezone: ",
+    local_tz
+  )
+  
   
   # ---------------------------------------------------------------------------
-  # Load and combine all available files for this bird/tag dataset.
+  # Load Step 1 detections
   # ---------------------------------------------------------------------------
   
-  data_all <- load_bird_files(
-    bird_folders = bird_folders,
-    MotusTagID = MotusTagID,
+  data_all <- load_tag_files(
+    tag_folders = bird_folders,
     bird_row = bird_row
   )
   
+  
   if (nrow(data_all) == 0) {
-    message("  Skipping: no data loaded.")
+    
+    message(
+      "  Skipping: no detections loaded."
+    )
+    
     next
   }
   
+  
+  # Step 1 retains the original Motus `ts` field and creates `time`.
+  # `ts` remains the authoritative UTC timestamp here.
+  
+  if (!"ts" %in% names(data_all)) {
+    
+    message(
+      "  Skipping: required Motus `ts` column is missing."
+    )
+    
+    next
+  }
+  
+  
   # ---------------------------------------------------------------------------
-  # Convert timestamps and assign receiver eras.
+  # Convert UTC timestamps to local time
   # ---------------------------------------------------------------------------
   
   data_clean <- data_all %>%
     mutate(
-      ts_utc = as.POSIXct(tsCorrected, origin = "1970-01-01", tz = "UTC"),
-      date_time_local = with_tz(ts_utc, tzone = local_tz),
-      detection_date = as.Date(date_time_local)
-    ) %>%
+      date_time_utc =
+        lubridate::as_datetime(
+          ts,
+          tz = "UTC"
+        ),
+      
+      date_time_local =
+        lubridate::with_tz(
+          date_time_utc,
+          tzone = local_tz
+        ),
+      
+      detection_date =
+        as.Date(
+          date_time_local
+        )
+    )
+  
+  
+  # ---------------------------------------------------------------------------
+  # Assign receiver hardware eras
+  # ---------------------------------------------------------------------------
+  
+  data_clean <- data_clean %>%
     left_join(
       Tower_metadata_long,
       by = "recvDeployName",
@@ -994,62 +1943,109 @@ for (i in seq_len(nrow(birds))) {
       detection_date <= end_date
     )
   
+  
   if (nrow(data_clean) == 0) {
-    message("  Skipping: no detections matched receiver eras.")
+    
+    message(
+      "  Skipping: no detections matched receiver metadata eras."
+    )
+    
     next
   }
   
+  
   # ---------------------------------------------------------------------------
-  # Deduplicate detections and retain strongest signal within short windows.
+  # Collapse simultaneous receiver/antenna detections
   # ---------------------------------------------------------------------------
   
-  data_clean <- clean_and_select_strongest_detections(
+  data_clean <- select_strongest_transmission_events(
     data = data_clean,
-    duty_cycle = duty_cycle,
-    tolerance = tolerance
+    event_tolerance =
+      transmission_event_tolerance
   )
   
+  
   # ---------------------------------------------------------------------------
-  # Identify top receiver.
-  #
-  # Thresholds are estimated from the receiver with the most detections because
-  # it is likely to provide the most stable and complete signal distribution.
+  # Select the receiver contributing the most retained transmission events
   # ---------------------------------------------------------------------------
   
   top_receiver <- data_clean %>%
-    count(recvDeployName, sort = TRUE) %>%
-    slice_head(n = 1) %>%
-    pull(recvDeployName)
+    count(
+      recvDeployName,
+      sort = TRUE
+    ) %>%
+    slice_head(
+      n = 1
+    ) %>%
+    pull(
+      recvDeployName
+    )
   
-  if (length(top_receiver) == 0 || is.na(top_receiver)) {
-    message("  Skipping: no top receiver identified.")
+  
+  if (
+    length(top_receiver) == 0 ||
+    is.na(top_receiver)
+  ) {
+    
+    message(
+      "  Skipping: no focal receiver could be identified."
+    )
+    
     next
   }
   
-  message("  Top receiver: ", top_receiver)
+  
+  message(
+    "  Focal receiver: ",
+    top_receiver
+  )
+  
   
   top_receiver_data <- data_clean %>%
-    filter(recvDeployName == top_receiver)
+    filter(
+      recvDeployName ==
+        top_receiver
+    )
   
-  # Split the top receiver detections by hardware era.
+  
+  # ---------------------------------------------------------------------------
+  # Process each hardware era of the focal receiver separately
+  # ---------------------------------------------------------------------------
+  
   era_list <- top_receiver_data %>%
-    group_by(tower_type, start_date, end_date) %>%
+    group_by(
+      tower_type,
+      start_date,
+      end_date
+    ) %>%
     group_split()
+  
   
   for (era_data in era_list) {
     
-    era_tower <- era_data$tower_type[1]
-    era_start <- era_data$start_date[1]
-    era_end <- era_data$end_date[1]
+    era_tower <-
+      era_data$tower_type[1]
     
-    message("  Era: ", era_tower, " (", era_start, " to ", era_end, ")")
+    era_start <-
+      era_data$start_date[1]
+    
+    era_end <-
+      era_data$end_date[1]
+    
+    
+    message(
+      "  Receiver era: ",
+      era_tower,
+      " (",
+      era_start,
+      " to ",
+      era_end,
+      ")"
+    )
+    
     
     # -------------------------------------------------------------------------
-    # Assign detections to diel periods.
-    #
-    # Nighttime detections are used as the inactive baseline for threshold
-    # estimation because Wood Thrushes are expected to be relatively inactive
-    # at night outside of unusual movement events.
+    # Assign diel periods
     # -------------------------------------------------------------------------
     
     era_data <- info_fast(
@@ -1059,121 +2055,182 @@ for (i in seq_len(nrow(birds))) {
       tz_local = local_tz
     )
     
+    
     # -------------------------------------------------------------------------
-    # Retrieve receiver-specific timing and signal-quality parameters.
+    # Retrieve receiver-specific SNR cutoff
     # -------------------------------------------------------------------------
     
     tower_params <- get_tower_parameters(
-      top_receiver = top_receiver,
-      era_tower = era_tower,
-      tower_metadata_long = Tower_metadata_long,
-      parameter_lookup = parameter_lookup
+      top_receiver =
+        top_receiver,
+      era_tower =
+        era_tower,
+      tower_metadata_long =
+        Tower_metadata_long,
+      parameter_lookup =
+        parameter_lookup
     )
+    
     
     if (
       nrow(tower_params) == 0 ||
-      is.na(tower_params$tolerance[1]) ||
-      is.na(tower_params$S2N_cutoff[1])
+      is.na(
+        tower_params$SNR_cutoff[1]
+      )
     ) {
-      message("    Skipping era: missing tower parameters.")
+      
+      message(
+        "    Skipping era: receiver-specific SNR parameters are missing."
+      )
+      
       next
     }
     
-    tolerance <- tower_params$tolerance[1]
-    S2N_cutoff <- tower_params$S2N_cutoff[1]
+    
+    SNR_cutoff <-
+      tower_params$SNR_cutoff[1]
+    
     
     # -------------------------------------------------------------------------
-    # Calculate valid signal differences and proportional signal ratios.
+    # Calculate valid signal-change metrics
     # -------------------------------------------------------------------------
     
     era_threshold_data <- calculate_signal_metrics(
       data = era_data,
       duty_cycle = duty_cycle,
-      tolerance = tolerance,
-      S2N_cutoff = S2N_cutoff
+      timing_tolerance =
+        timing_tolerance,
+      SNR_cutoff =
+        SNR_cutoff
     ) %>%
       mutate(
-        duty_cycle = duty_cycle,
-        tolerance = tolerance,
-        S2N_cutoff = S2N_cutoff
+        duty_cycle =
+          duty_cycle,
+        tolerance =
+          timing_tolerance,
+        S2N_cutoff =
+          SNR_cutoff
       )
     
-    plot_data_name <- paste0(bird_id, "_", era_tower)
+    
+    plot_data_name <- paste0(
+      bird_id,
+      "_",
+      era_tower
+    )
+    
     
     all_signal_data_for_plots[[plot_data_name]] <- era_threshold_data %>%
       mutate(
-        bird = bird_id,
-        top_receiver = top_receiver,
-        tower_type = era_tower,
-        receiver_era_start_date = era_start,
-        receiver_era_end_date = era_end
+        bird =
+          bird_id,
+        top_receiver =
+          top_receiver,
+        tower_type =
+          era_tower,
+        receiver_era_start_date =
+          era_start,
+        receiver_era_end_date =
+          era_end
       )
     
+    
     # -------------------------------------------------------------------------
-    # Extract nighttime baseline detections.
+    # Extract nighttime inactive baseline
     # -------------------------------------------------------------------------
     
     night_baseline_data <- era_threshold_data %>%
       filter(
-        !is.na(sig_ratio),
-        timing %in% c("night_1", "night_2")
+        !is.na(
+          sig_ratio
+        ),
+        timing %in% c(
+          "night_1",
+          "night_2"
+        )
       ) %>%
-      arrange(date_time_local)
+      arrange(
+        date_time_local
+      )
+    
     
     if (nrow(night_baseline_data) == 0) {
-      message("    Skipping era: no valid nighttime baseline detections.")
+      
+      message(
+        "    Skipping era: no valid nighttime baseline detections."
+      )
+      
       next
     }
     
+    
     # -------------------------------------------------------------------------
-    # Require enough consecutive nighttime detections.
-    #
-    # This prevents estimating thresholds from isolated nighttime detections,
-    # which may not represent a stable inactive period.
+    # Require a sufficiently long consecutive nighttime sequence
     # -------------------------------------------------------------------------
     
-    enough_night_data <- has_enough_consecutive_night_detections(
-      night_baseline_data = night_baseline_data,
-      duty_cycle = duty_cycle,
-      tolerance = tolerance,
-      min_consecutive_night_detections = min_consecutive_night_detections
-    )
+    enough_night_data <-
+      has_enough_consecutive_night_detections(
+        night_baseline_data =
+          night_baseline_data,
+        duty_cycle =
+          duty_cycle,
+        timing_tolerance =
+          timing_tolerance,
+        min_consecutive_night_detections =
+          min_consecutive_night_detections
+      )
+    
     
     if (!enough_night_data) {
-      message("    Skipping era: fewer than ",
-              min_consecutive_night_detections,
-              " consecutive nighttime detections.")
+      
+      message(
+        "    Skipping era: fewer than ",
+        min_consecutive_night_detections,
+        " consecutive nighttime detections."
+      )
+      
       next
     }
     
+    
     # -------------------------------------------------------------------------
-    # Estimate thresholds.
+    # Estimate proportional signal-change thresholds
     # -------------------------------------------------------------------------
     
     thresholds <- calculate_thresholds(
-      night_baseline_data = night_baseline_data,
-      threshold_sd_multiplier = threshold_sd_multiplier
+      night_baseline_data =
+        night_baseline_data,
+      threshold_sd_multiplier =
+        threshold_sd_multiplier
     )
     
+    
     if (is.null(thresholds)) {
-      message("    Skipping era: threshold calculation failed.")
+      
+      message(
+        "    Skipping era: threshold calculation failed."
+      )
+      
       next
     }
     
+    
     # -------------------------------------------------------------------------
-    # Apply preliminary activity classification for diagnostics.
+    # Apply preliminary activity classification for diagnostics
     #
-    # This uses the same classify_activity() logic used in Step 3, but only as a
-    # diagnostic check for threshold behavior. It does not replace the final Step 3
-    # deployment-level activity classification.
+    # The final deployment-level activity classification occurs in Step 3.
     # -------------------------------------------------------------------------
     
     era_activity_input <- era_threshold_data %>%
       mutate(
-        lower_ratio = thresholds$lower_ratio,
-        upper_ratio = thresholds$upper_ratio,
-        lower_db = thresholds$lower_db,
-        upper_db = thresholds$upper_db
+        lower_ratio =
+          thresholds$lower_ratio,
+        upper_ratio =
+          thresholds$upper_ratio,
+        lower_db =
+          thresholds$lower_db,
+        upper_db =
+          thresholds$upper_db
       ) %>%
       pivot_wider(
         id_cols = c(
@@ -1188,101 +2245,259 @@ for (i in seq_len(nrow(birds))) {
           lower_db,
           upper_db
         ),
-        names_from = port,
-        values_from = c(sig, noise),
-        names_vary = "slowest"
+        names_from =
+          port,
+        values_from = c(
+          sig,
+          noise
+        ),
+        names_vary =
+          "slowest"
       )
+    
     
     era_activity_classified <- classify_activity(
-      df = era_activity_input,
-      duty_cycle = duty_cycle,
-      lower_ratio = era_activity_input$lower_ratio,
-      upper_ratio = era_activity_input$upper_ratio
+      df =
+        era_activity_input,
+      duty_cycle =
+        duty_cycle,
+      lower_ratio =
+        era_activity_input$lower_ratio,
+      upper_ratio =
+        era_activity_input$upper_ratio
     )
     
-    era_threshold_data <- era_activity_classified %>%
+    
+    # Preserve tag identifiers in the stored output.
+    
+    era_threshold_data <-
+      era_activity_classified %>%
       mutate(
-        MotusTagID = MotusTagID,
-        mfgID_raw = paste(mfgID_raw_vals, collapse = ","),
-        mfgID_base = mfgID_base
+        MotusTagID =
+          current_MotusTagID,
+        mfgID_base =
+          current_mfgID_base
       )
     
+    
     # -------------------------------------------------------------------------
-    # Store results for this bird × receiver era.
+    # Store receiver-era result
     # -------------------------------------------------------------------------
     
-    result_name <- paste0(bird_id, "_", era_tower)
-    
-    all_results[[result_name]] <- list(
-      bird = bird_id,
-      duty_cycle = duty_cycle,
-      recvDeployName = top_receiver,
-      tower_type = era_tower,
-      receiver_era_start_date = era_start,
-      receiver_era_end_date = era_end,
-      threshold_scale = "ratio",
-      data_final = era_threshold_data,
-      thresholds = thresholds,
-      pct_within_threshold = era_threshold_data %>%
-        summarise(
-          n_total = sum(!is.na(sig_ratio)),
-          n_within = sum(
-            sig_ratio >= thresholds$lower_ratio &
-              sig_ratio <= thresholds$upper_ratio,
-            na.rm = TRUE
-          ),
-          pct_within = ifelse(n_total > 0, n_within / n_total * 100, NA_real_)
-        ),
-      sample_size = nrow(era_threshold_data)
+    result_name <- paste0(
+      bird_id,
+      "_",
+      era_tower
     )
     
-    message("    ✅ Thresholds calculated.")
+    
+    all_results[[result_name]] <- list(
+      bird =
+        bird_id,
+      
+      duty_cycle =
+        duty_cycle,
+      
+      recvDeployName =
+        top_receiver,
+      
+      tower_type =
+        era_tower,
+      
+      receiver_era_start_date =
+        era_start,
+      
+      receiver_era_end_date =
+        era_end,
+      
+      threshold_scale =
+        "ratio",
+      
+      data_final =
+        era_threshold_data,
+      
+      thresholds =
+        thresholds,
+      
+      pct_within_threshold =
+        era_threshold_data %>%
+        summarise(
+          n_total =
+            sum(
+              !is.na(
+                sig_ratio
+              )
+            ),
+          
+          n_within =
+            sum(
+              sig_ratio >=
+                thresholds$lower_ratio &
+                sig_ratio <=
+                thresholds$upper_ratio,
+              na.rm = TRUE
+            ),
+          
+          pct_within =
+            ifelse(
+              n_total > 0,
+              n_within /
+                n_total *
+                100,
+              NA_real_
+            )
+        ),
+      
+      sample_size =
+        nrow(
+          era_threshold_data
+        )
+    )
+    
+    
+    message(
+      "    ✅ Thresholds calculated: ",
+      round(
+        thresholds$lower_ratio,
+        3
+      ),
+      "–",
+      round(
+        thresholds$upper_ratio,
+        3
+      )
+    )
   }
 }
 
-message("\n✅ Adaptive thresholds calculated.")
+
 
 # ==============================================================================
-# 7) Save summary outputs
+# 7) SAVE THRESHOLD RESULTS
 # ==============================================================================
 
 if (length(all_results) == 0) {
-  stop("❌ No thresholds were calculated. Check metadata, nighttime detections, and receiver eras.")
+  
+  stop(
+    "\nNo activity thresholds were calculated.\n",
+    "Check deployment metadata, receiver metadata, nighttime detections, ",
+    "burst intervals, and receiver-era definitions."
+  )
 }
 
-summary_table <- make_threshold_summary_table(all_results)
 
-print(summary_table)
+summary_table <- make_threshold_summary_table(
+  all_results
+)
 
-state_names <- paste(unique(folder_info$state), collapse = "_")
+
+print(
+  summary_table
+)
+
+
+dataset_labels <- paste(
+  sort(
+    unique(
+      folder_info$dataset_label
+    )
+  ),
+  collapse = "_"
+)
+
 
 summary_file <- file.path(
   root_dir,
-  paste0("all_birds_thresholds_summary", state_names, ".csv")
+  paste0(
+    "all_birds_thresholds_summary_",
+    dataset_labels,
+    ".csv"
+  )
 )
+
 
 results_rds_file <- file.path(
   root_dir,
-  paste0("all_birds_threshold_results", state_names, ".RDS")
+  paste0(
+    "all_birds_threshold_results_",
+    dataset_labels,
+    ".RDS"
+  )
 )
 
-readr::write_csv(summary_table, summary_file)
-saveRDS(all_results, results_rds_file)
 
-message("✅ Summary table saved to: ", summary_file)
-message("✅ Full results list saved to: ", results_rds_file)
+readr::write_csv(
+  summary_table,
+  summary_file
+)
+
+
+saveRDS(
+  all_results,
+  results_rds_file
+)
+
+
+message(
+  "✅ Threshold summary saved:\n  ",
+  summary_file
+)
+
+
+message(
+  "✅ Full threshold results saved:\n  ",
+  results_rds_file
+)
+
+
 
 # ==============================================================================
-# 8) Threshold diagnostic histograms
+# 8) SAVE DIAGNOSTIC HISTOGRAMS
 # ==============================================================================
 
-threshold_plots_dir <- file.path(root_dir, "threshold_hist_plots")
+threshold_plots_dir <- file.path(
+  root_dir,
+  "threshold_hist_plots"
+)
+
 
 save_threshold_histograms(
-  all_results = all_results,
-  all_signal_data_for_plots = all_signal_data_for_plots,
-  output_dir = threshold_plots_dir,
-  min_consecutive_night_detections = min_consecutive_night_detections
+  all_results =
+    all_results,
+  all_signal_data_for_plots =
+    all_signal_data_for_plots,
+  output_dir =
+    threshold_plots_dir,
+  min_consecutive_night_detections =
+    min_consecutive_night_detections
 )
 
-message("\n🎉 STEP 2 COMPLETE")
+
+
+# ==============================================================================
+# 9) FINISH
+# ==============================================================================
+
+message(
+  "\n🎉 STEP 2 COMPLETE"
+)
+
+
+message(
+  "Threshold estimates created: ",
+  length(
+    all_results
+  )
+)
+
+
+message(
+  "Threshold summary:\n  ",
+  summary_file
+)
+
+
+message(
+  "Diagnostic plots:\n  ",
+  threshold_plots_dir
+)

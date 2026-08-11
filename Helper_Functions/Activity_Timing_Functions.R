@@ -481,3 +481,194 @@ info_fast <- function(df, lat, lon, tz_local) {
   
   return(df3)
 }
+
+# ==============================================================================
+# TRANSMISSION-EVENT PROCESSING
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# select_strongest_transmission_events()
+#
+# Group nearly simultaneous detections of the same transmitter burst and retain
+# the detection with the strongest received signal.
+#
+# Automated receiver networks may record the same transmitter burst on multiple
+# antennas or nearby receivers at slightly different timestamps. These duplicate
+# detections should represent one transmission event rather than independent
+# observations.
+#
+# Event grouping is anchored to the first detection in each event. A subsequent
+# detection is assigned to the current event only when its timestamp occurs
+# within `event_tolerance` seconds of that event's first detection.
+#
+# Anchoring events this way prevents "chaining." For example, with a 0.3-s
+# tolerance, detections at 0.00, 0.25, and 0.50 s will not all be grouped into
+# one event simply because each adjacent pair is separated by only 0.25 s.
+#
+# After events are assigned, only the detection with the greatest signal
+# strength (`sig`) is retained from each event.
+#
+# Parameters
+# ----------
+# data :
+#   Detection data containing `date_time_local` and `sig`.
+#
+# event_tolerance :
+#   Maximum elapsed time, in seconds, from the first detection in an event.
+#
+# Returns
+# -------
+# One row per transmission event, ordered chronologically.
+# ------------------------------------------------------------------------------
+
+select_strongest_transmission_events <- function(
+    data,
+    event_tolerance = 0.3
+) {
+  
+  # ---------------------------------------------------------------------------
+  # Basic validation
+  # ---------------------------------------------------------------------------
+  
+  required_cols <- c(
+    "date_time_local",
+    "sig"
+  )
+  
+  missing_cols <- setdiff(
+    required_cols,
+    names(data)
+  )
+  
+  if (length(missing_cols) > 0) {
+    stop(
+      "`select_strongest_transmission_events()` requires column(s): ",
+      paste(
+        missing_cols,
+        collapse = ", "
+      )
+    )
+  }
+  
+  
+  if (
+    length(event_tolerance) != 1 ||
+    !is.numeric(event_tolerance) ||
+    is.na(event_tolerance) ||
+    event_tolerance < 0
+  ) {
+    stop(
+      "`event_tolerance` must be one non-negative number in seconds."
+    )
+  }
+  
+  
+  if (nrow(data) == 0) {
+    return(data)
+  }
+  
+  
+  # Remove rows lacking a usable timestamp.
+  #
+  # These cannot be assigned to transmission events.
+  
+  n_missing_time <- sum(
+    is.na(
+      data$date_time_local
+    )
+  )
+  
+  if (n_missing_time > 0) {
+    warning(
+      n_missing_time,
+      " detection(s) with missing `date_time_local` were removed ",
+      "before transmission-event grouping."
+    )
+  }
+  
+  
+  x <- data %>%
+    dplyr::filter(
+      !is.na(
+        date_time_local
+      )
+    ) %>%
+    dplyr::arrange(
+      date_time_local
+    )
+  
+  
+  if (nrow(x) == 0) {
+    return(x)
+  }
+  
+  
+  # ---------------------------------------------------------------------------
+  # Assign transmission events
+  # ---------------------------------------------------------------------------
+  
+  event_time <- as.numeric(
+    x$date_time_local
+  )
+  
+  event_id <- integer(
+    length(event_time)
+  )
+  
+  
+  # First detection begins the first event.
+  
+  current_event <- 1L
+  
+  event_id[1] <- current_event
+  
+  event_start_time <- event_time[1]
+  
+  
+  if (length(event_time) > 1) {
+    
+    for (i in 2:length(event_time)) {
+      
+      # Begin a new event when the current detection occurs more than the
+      # permitted tolerance after the FIRST detection in the current event.
+      
+      if (
+        is.na(event_time[i]) ||
+        event_time[i] - event_start_time > event_tolerance
+      ) {
+        
+        current_event <- current_event + 1L
+        
+        event_start_time <- event_time[i]
+      }
+      
+      
+      event_id[i] <- current_event
+    }
+  }
+  
+  
+  # ---------------------------------------------------------------------------
+  # Retain strongest detection from each event
+  # ---------------------------------------------------------------------------
+  
+  x %>%
+    dplyr::mutate(
+      transmission_event = event_id
+    ) %>%
+    dplyr::group_by(
+      transmission_event
+    ) %>%
+    dplyr::slice_max(
+      order_by = sig,
+      n = 1,
+      with_ties = FALSE
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(
+      date_time_local
+    ) %>%
+    dplyr::select(
+      -transmission_event
+    )
+}

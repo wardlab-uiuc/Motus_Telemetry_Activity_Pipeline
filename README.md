@@ -1,3090 +1,1773 @@
-Motus Telemetry Activity Pipeline
-================
-Lauren Brunk
-Last updated: June 22, 2026
+# Motus Telemetry Activity Pipeline
 
-- [Quick summary](#quick-summary)
-  - [Documentation formats](#documentation-formats)
+A reproducible workflow for estimating movement-based activity from automated radiotelemetry detections.
+
+This pipeline converts Motus Wildlife Tracking System detections into detection-level active/inactive classifications and hourly activity summaries. It was developed and validated using Wood Thrush (*Hylocichla mustelina*) telemetry data, but the overall structure can be adapted to other species, receiver arrays, and tag deployments when the biological assumptions and required signal data are appropriate.
+
+The framework uses proportional changes in received signal strength together with strongest-antenna switching and strongest-receiver switching, while accounting for transmitter burst interval, receiver-specific signal characteristics, signal quality, and isolated telemetry dropouts.
+
+An optional stationary-tag screen can also identify deployments that show unusually prolonged inactivity near the end of the detection record.
+
+This repository accompanies the manuscript:
+
+> **A Standardized Framework for Estimating Animal Activity from Automated Radiotelemetry**
+
+A full publication citation and DOI will be added here when available. Citation metadata for the software repository are also provided in `CITATION.cff`.
+
+> **Recommended first step:** Run the full workflow using the included example dataset before applying it to a new Motus project.
+
+---
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Requirements](#requirements)
 - [Conceptual workflow](#conceptual-workflow)
-- [Contact](#contact)
-- [Opening the project in RStudio](#opening-the-project-in-rstudio)
-- [Reproducible package environment](#reproducible-package-environment)
-- [Included example dataset](#included-example-dataset)
-- [What this pipeline is designed to
-  do](#what-this-pipeline-is-designed-to-do)
-- [Recommended run order](#recommended-run-order)
-- [Data permissions and usage](#data-permissions-and-usage)
-- [Key concepts and definitions](#key-concepts-and-definitions)
-  - [MotusTagID](#motustagid)
-  - [mfgID](#mfgid)
-  - [Band](#band)
-  - [Deployment](#deployment)
-  - [Receiver / tower](#receiver--tower)
-  - [Receiver era](#receiver-era)
-  - [Dongle type](#dongle-type)
-  - [System](#system)
-  - [Tower type / receiver type](#tower-type--receiver-type)
-  - [Duty cycle](#duty-cycle)
-  - [Timing tolerance](#timing-tolerance)
-  - [Signal-to-noise ratio (S2N)](#signal-to-noise-ratio-s2n)
-  - [S2N cutoff](#s2n-cutoff)
-    - [Reference](#reference)
-  - [sig_diff](#sig_diff)
-  - [sig_ratio](#sig_ratio)
-  - [ln_sig_ratio](#ln_sig_ratio)
-  - [Inactive baseline](#inactive-baseline)
-  - [Activity threshold](#activity-threshold)
-  - [Active detection](#active-detection)
-  - [Stationary-tag screen](#stationary-tag-screen)
+- [What this pipeline is designed to do](#what-this-pipeline-is-designed-to-do)
 - [Repository structure](#repository-structure)
-  - [Generated workflow outputs](#generated-workflow-outputs)
-- [Required R packages](#required-r-packages)
-- [Required custom functions](#required-custom-functions)
-- [Required input data](#required-input-data)
-  - [Motus detection data](#motus-detection-data)
-    - [Option A: Included example
-      dataset](#option-a-included-example-dataset)
-    - [Option B: Existing alltags-style `.rds`
-      file](#option-b-existing-alltags-style-rds-file)
-    - [Option C: Full Motus project
-      download](#option-c-full-motus-project-download)
-  - [Metadata structure notes](#metadata-structure-notes)
-    - [Bird metadata rows](#bird-metadata-rows)
-    - [Minimum required bird metadata](#minimum-required-bird-metadata)
-    - [Bird metadata columns](#bird-metadata-columns)
-    - [Why `Date_end` matters](#why-date_end-matters)
-    - [Why `Time_tagged` matters](#why-time_tagged-matters)
-    - [Tower metadata rows](#tower-metadata-rows)
-    - [Minimum required tower
-      metadata](#minimum-required-tower-metadata)
-    - [Tower metadata columns](#tower-metadata-columns)
-    - [Receiver hardware changes](#receiver-hardware-changes)
-- [Step 1: Load/download and split Motus
-  data](#step-1-loaddownload-and-split-motus-data)
-  - [Script](#script)
-  - [Purpose](#purpose)
-  - [Main settings to edit](#main-settings-to-edit)
-    - [Run mode](#run-mode)
-    - [Example mode settings](#example-mode-settings)
-    - [Existing `.rds` mode settings](#existing-rds-mode-settings)
-    - [Motus download settings](#motus-download-settings)
-    - [Shared output/path settings](#shared-outputpath-settings)
-    - [Setting descriptions](#setting-descriptions)
-  - [Running Step 1 with the example
-    dataset](#running-step-1-with-the-example-dataset)
-  - [Running Step 1 with a full Motus
-    project](#running-step-1-with-a-full-motus-project)
-  - [Running Step 1 with an existing alltags `.rds`
-    file](#running-step-1-with-an-existing-alltags-rds-file)
-  - [Step 1 outputs](#step-1-outputs)
-- [Step 2: Estimate signal
-  thresholds](#step-2-estimate-signal-thresholds)
-  - [Script](#script-1)
-  - [Purpose](#purpose-1)
-  - [Main settings to edit](#main-settings-to-edit-1)
-  - [Code structure](#code-structure)
-  - [What the script does](#what-the-script-does)
-    - [Load individual filtered tag
-      folders](#load-individual-filtered-tag-folders)
-    - [Load metadata and create receiver
-      eras](#load-metadata-and-create-receiver-eras)
-    - [Select each bird’s top receiver](#select-each-birds-top-receiver)
-    - [Select strongest detection](#select-strongest-detection)
-    - [Add diel timing](#add-diel-timing)
-    - [Calculate signal metrics](#calculate-signal-metrics)
-    - [Estimate nighttime baseline](#estimate-nighttime-baseline)
-    - [Calculate proportional
-      thresholds](#calculate-proportional-thresholds)
-    - [Apply preliminary activity
-      classification](#apply-preliminary-activity-classification)
-    - [Save summary table and full
-      results](#save-summary-table-and-full-results)
-  - [Step 2 outputs](#step-2-outputs)
-- [Step 3: Classify activity and summarize
-  detections](#step-3-classify-activity-and-summarize-detections)
-  - [Script options](#script-options)
-  - [Purpose](#purpose-2)
-  - [Main settings to edit](#main-settings-to-edit-2)
-  - [Code structure](#code-structure-1)
-  - [What the script does](#what-the-script-does-1)
-    - [Load one or more MotusTagID × mfgID
-      datasets](#load-one-or-more-motustagid--mfgid-datasets)
-    - [Load metadata and thresholds](#load-metadata-and-thresholds)
-    - [Aggregate thresholds by receiver
-      type](#aggregate-thresholds-by-receiver-type)
-    - [Resolve biological deployments](#resolve-biological-deployments)
-    - [Filter detections to deployment
-      window](#filter-detections-to-deployment-window)
-    - [Infer multi-receiver site
-      membership](#infer-multi-receiver-site-membership)
-    - [Clean and select the strongest
-      detection](#clean-and-select-the-strongest-detection)
-    - [Add diel timing](#add-diel-timing-1)
-    - [Attach receiver thresholds](#attach-receiver-thresholds)
-    - [Screen for possible stationary tag, dropped tag, or mortality
-      pattern](#screen-for-possible-stationary-tag-dropped-tag-or-mortality-pattern)
-    - [Reshape to wide format](#reshape-to-wide-format)
-    - [Classify activity](#classify-activity)
-    - [Summarize hourly activity](#summarize-hourly-activity)
-    - [Aggregate hourly activity across
-      days](#aggregate-hourly-activity-across-days)
-    - [Save tables and plots](#save-tables-and-plots)
+- [Before running the pipeline](#before-running-the-pipeline)
+- [Included example dataset](#included-example-dataset)
+- [Required metadata](#required-metadata)
+- [Key concepts](#key-concepts)
+- [Why proportional signal change?](#why-proportional-signal-change)
+- [Step 1 — Prepare Motus detections](#step-1--prepare-motus-detections)
+- [Step 2 — Estimate activity thresholds](#step-2--estimate-activity-thresholds)
+- [Step 3 — Classify activity](#step-3--classify-activity)
+- [Optional stationary-tag screen](#optional-stationary-tag-screen)
 - [Step 3 outputs](#step-3-outputs)
-  - [Output tables](#output-tables)
-  - [Important output columns](#important-output-columns)
-    - [Detection-level activity table](#detection-level-activity-table)
-    - [Hourly per-day table](#hourly-per-day-table)
-    - [Hourly summary table](#hourly-summary-table)
-    - [Stationary-tag screening table](#stationary-tag-screening-table)
-- [Plot interpretation guide](#plot-interpretation-guide)
-  - [`hourly_activity`](#hourly_activity)
-  - [`daily_detected_vs_expected`](#daily_detected_vs_expected)
-  - [`fraction_expected_tod`](#fraction_expected_tod)
-  - [`duty_cycle`](#duty_cycle)
-  - [`signal_difference`](#signal_difference)
-  - [`dropouts` / corrected single-detection
-    switches](#dropouts--corrected-single-detection-switches)
-  - [`daily_daytime_activity`](#daily_daytime_activity)
-  - [`stationary_tag_screen`](#stationary_tag_screen)
-- [Quality control checklist](#quality-control-checklist)
-  - [Metadata checks](#metadata-checks)
-  - [Threshold checks](#threshold-checks)
-  - [Activity classification checks](#activity-classification-checks)
-  - [Stationary-tag screening checks](#stationary-tag-screening-checks)
-- [Common errors and
-  troubleshooting](#common-errors-and-troubleshooting)
-  - [Motus login and download
-    troubleshooting](#motus-login-and-download-troubleshooting)
-    - [Existing `.rds` file mode
-      troubleshooting](#existing-rds-file-mode-troubleshooting)
-  - [Error: no matching bird metadata
-    found](#error-no-matching-bird-metadata-found)
-  - [Error: missing receiver metadata](#error-missing-receiver-metadata)
-  - [Error: missing thresholds](#error-missing-thresholds)
-  - [Stationary-tag screen skipped](#stationary-tag-screen-skipped)
-- [Tested environment](#tested-environment)
+- [Step 3 processing log](#step-3-processing-log)
+- [Diagnostic figures](#diagnostic-figures)
+- [Diel timing](#diel-timing)
+- [Quality-control checklist](#quality-control-checklist)
+- [Common issues and solutions](#common-issues-and-solutions)
+- [Things to consider when adapting the pipeline](#things-to-consider-when-adapting-the-pipeline)
 - [Assumptions and limitations](#assumptions-and-limitations)
-  - [Activity is inferred, not directly
-    observed](#activity-is-inferred-not-directly-observed)
-  - [Nighttime is used as an inactive
-    baseline](#nighttime-is-used-as-an-inactive-baseline)
-  - [Thresholds partially reduce distance bias, but do not eliminate
-    it](#thresholds-partially-reduce-distance-bias-but-do-not-eliminate-it)
-  - [Receiver hardware matters](#receiver-hardware-matters)
-  - [Redeployments must be documented
-    accurately](#redeployments-must-be-documented-accurately)
-  - [Stationary-tag screening is diagnostic
-    only](#stationary-tag-screening-is-diagnostic-only)
-- [Adapting the pipeline to another
-  project](#adapting-the-pipeline-to-another-project)
+- [Adapting the pipeline to another study](#adapting-the-pipeline-to-another-study)
 - [Minimal run example](#minimal-run-example)
-  - [Step 1](#step-1)
-  - [Step 2](#step-2)
-  - [Step 3A: one tag dataset](#step-3a-one-tag-dataset)
-  - [Step 3B: all tag datasets](#step-3b-all-tag-datasets)
 - [Glossary](#glossary)
-- [Final notes](#final-notes)
+- [Data permissions and usage](#data-permissions-and-usage)
+- [Tested environment](#tested-environment)
+- [Getting help](#getting-help)
 - [License](#license)
-- [Citation and attribution](#citation-and-attribution)
+- [Citation](#citation)
+- [Final notes](#final-notes)
 
-<style>
-body {
-  font-size: 15px;
-  line-height: 1.55;
-}
-&#10;h1, h2, h3 {
-  font-weight: 700;
-}
-&#10;.callout {
-  border-left: 5px solid #2c7fb8;
-  background-color: #f3f8fb;
-  padding: 12px 16px;
-  margin: 18px 0;
-  border-radius: 6px;
-}
-&#10;.warning {
-  border-left: 5px solid #d95f0e;
-  background-color: #fff7ec;
-  padding: 12px 16px;
-  margin: 18px 0;
-  border-radius: 6px;
-}
-&#10;.good {
-  border-left: 5px solid #31a354;
-  background-color: #f0f9f0;
-  padding: 12px 16px;
-  margin: 18px 0;
-  border-radius: 6px;
-}
-&#10;.code-note {
-  font-family: monospace;
-  background-color: #f7f7f7;
-  padding: 2px 5px;
-  border-radius: 4px;
-}
-&#10;table {
-  font-size: 14px;
-  width: 100%;
-}
-&#10;table th {
-  text-align: left !important;
-  vertical-align: top;
-}
-&#10;table td {
-  text-align: left;
-  vertical-align: top;
-}
-</style>
+---
 
-# Quick summary
-
-This README explains the **Motus Telemetry Activity Pipeline**, which
-converts Motus detection data into individual activity classifications
-and hourly activity summaries.
-
-The workflow was developed for **Wood Thrush activity estimation from
-automated radiotelemetry**, but the overall structure can be adapted to
-other Motus projects, species, receiver arrays, and tag deployments if
-the biological assumptions and input data are appropriate.
-
-## Documentation formats
-
-This repository includes both:
-
-| File | Purpose |
-|----|----|
-| `README.md` | GitHub-friendly version displayed on the repository homepage |
-| `README.html` | Formatted version with enhanced navigation and styling |
-
-Both files contain the same core documentation. The HTML version is
-generally easier to navigate for long-form reading, while the Markdown
-version is optimized for GitHub display.
-
-<div class="callout">
-
-<strong>In plain language:</strong> this pipeline loads or downloads
-Motus detections, separates detections by individual tag dataset,
-estimates how much signal variation should be expected when a bird is
-probably inactive, and then uses that baseline to classify later
-detections as active or inactive.
-
-</div>
-
-<div class="good">
-
-<strong>Recommended background reading:</strong> Users new to Motus
-telemetry are strongly encouraged to review Chapters 1–5 of the official
-Motus documentation before running this pipeline. These chapters provide
-important background on Motus data structure, receiver systems, tag
-detections, filtering, and database organization, which will make the
-workflow and outputs much easier to understand and interpret. <br><br>
-Motus documentation: <br>
-<a href="https://motuswts.github.io/motus/articles/index.html" target="_blank">
-https://motuswts.github.io/motus/articles/index.html </a>
-
-</div>
-
-This repository includes a small example dataset so users can test the
-workflow before downloading a full Motus project.
-
-The full pipeline currently contains three main scripts, with two
-options for Step 3:
-
-| Step | Script | Main purpose | Main output |
-|----|----|----|----|
-| 1 | `Step1_Motus_to_Individual_Birds.R` | Load the included example dataset, load an existing alltags-style `.rds` file, or download Motus data; then apply the Motus filter and save Motus-filtered files per `MotusTagID × mfgID` | Individual tag `.rds` and `.csv` files |
-| 2 | `Step2_Activity_Threshold_Calculation.R` | Estimate inactivity thresholds from proportional signal variation during a biologically defined inactive period (e.g., nighttime for Wood Thrushes), then summarize thresholds by receiver hardware configuration. | Threshold summary tables, threshold `.rds` files, and diagnostic plots |
-| 3A | `Step3_Activity_Classification.R` | Apply receiver-type proportional signal thresholds, antenna/receiver switching logic, and quality-control filters to classify detections as active or inactive and summarize hourly activity. | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
-| 3B | `Step3_LOOP_Activity_Classification.R` | Apply receiver-type thresholds to all tag datasets in the Step 1 output folder | Detection-level activity tables, hourly summaries, stationary-tag screening outputs, and plots |
-
-# Conceptual workflow
-
-The pipeline follows the workflow below:
-
-``` text
-Raw Motus detections
-          │
-          ▼
-Step 1
-Filter detections and split by tag dataset
-          │
-          ▼
-Step 2
-Estimate inactive baseline from nighttime signal variation
-          │
-          ▼
-Summarize thresholds by receiver hardware type
-          │
-          ▼
-Step 3
-Apply thresholds, receiver switching, and antenna switching logic
-          │
-          ▼
-Detection-level activity classifications
-          │
-          ▼
-Hourly activity summaries and diagnostic plots
-```
-
-<div class="callout">
-
-<strong>In plain language:</strong> The pipeline first prepares
-individual tag datasets, then learns how much signal variation is
-expected when birds are relatively inactive, and finally uses that
-information to classify movement-based activity throughout the detection
-record.
-
-</div>
-
-# Contact
-
-For questions about the pipeline, assumptions, or adapting the code to
-another project, contact:
-
-| Name         | Role                                | Email                  |
-|--------------|-------------------------------------|------------------------|
-| Lauren Brunk | Pipeline author / thesis researcher | `lbrunk2@illinois.edu` |
-| Mike Ward    | Advisor / project contact           | `mpward@illinois.edu`  |
-
-# Opening the project in RStudio
-
-Before running any scripts, open the repository using the included
-RStudio project file:
-
-``` text
-Telemetry_Activity_Pipeline.Rproj
-```
-
-# Reproducible package environment
-
-This repository uses `renv` to help reproduce the package environment
-used during development.
-
-When Step 1 runs, it automatically attempts to:
-
-1.  Activate the project `renv` environment
-2.  Restore package versions recorded in `renv.lock`
-3.  Install any still-missing packages
-
-For best reproducibility, open the repository using the included
-`.Rproj` file before running the workflow.
-
-If `renv` is not already installed on your computer, install it once
-using:
-
-``` r
-install.packages("renv")
-```
-
-# Included example dataset
-
-This repository includes a small example dataset intended for testing
-the workflow and helping new users learn the pipeline structure.
-
-The included file is:
-
-``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
-```
-
-This dataset is a subset of detections from:
-
-| Field            | Value                             |
-|------------------|-----------------------------------|
-| Motus project    | Illinois Wood Thrush Project      |
-| Motus project ID | `787`                             |
-| Receiver/tower   | `Allerton` and `Allerton South`   |
-| Date range       | May 25–June 2, 2025               |
-| File type        | `.rds`                            |
-| Filtering status | Not yet filtered by `motusFilter` |
-
-The example dataset is intentionally small so users can quickly test:
-
-- File paths
-- Motus filtering
-- Individual tag splitting
-- Threshold estimation
-- Activity classification
-- Stationary-tag screening
-- Output generation
-- Diagnostic plots
-
-The example dataset is a flattened version of the Motus alltags view. In
-a downloaded Motus project database, detections are stored in a .motus
-SQLite file made up of multiple linked tables. The alltags view combines
-tag detection records with commonly used tag, receiver, antenna,
-project, and species metadata into one convenient table. This pipeline
-uses that alltags-style format as the starting point for Step 1, so the
-same workflow can be used whether users begin with the included example
-.rds file, an already-exported alltags .rds file, or a full Motus
-project download.
-
-# What this pipeline is designed to do
-
-This pipeline estimates **movement-based activity** from automated
-radiotelemetry detections. It does not directly observe or identify
-specific behaviors. Instead, it uses signal variation, receiver
-switching, antenna switching, and detection timing to infer whether a
-tagged bird was likely moving, and ultimately producing hourly activity
-rates.
-
-The pipeline was specifically designed to address several common
-problems in Motus telemetry data:
-
-1.  **Signal strength is not only affected by movement.** Signal
-    variation can also reflect distance from the receiver, vegetation,
-    terrain, antenna orientation, weather, receiver hardware, and
-    background electromagnetic noise.
-
-2.  **MotusTagID + mfgID do not always represent one bird.** Tags may be
-    redeployed, meaning the same tag dataset can contain multiple
-    biological deployments across time.
-
-3.  **Receivers are not equivalent.** Different receiver systems and
-    dongle types can produce different signal distributions and noise
-    environments.
-
-4.  **Sparse detections can create false activity.** The pipeline
-    applies timing filters, signal-to-noise filters, receiver-type
-    thresholds, and dropout correction to reduce false positives.
-
-5.  **Stationary transmitters can resemble very low activity.** This
-    workflow includes an optional diagnostic screen for deployments that
-    become unusually stationary near the end of the detection record.
-
-# Recommended run order
+## Quick start
 
 Run the scripts in this order:
 
-``` text
-1. Step1_Motus_to_Individual_Birds.R
-       ↓
-2. Step2_Activity_Threshold_Calculation.R
-       ↓
-3A. Step3_Activity_Classification.R
-       OR
-3B. Step3_LOOP_Activity_Classification.R
+```text
+Step1_Motus_to_Individual_Birds.R
+                ↓
+Step2_Activity_Threshold_Calculation.R
+                ↓
+Step3_Activity_Classification.R
+                ↓
+Step3_LOOP_Activity_Classification.R
+       optional after testing one dataset
 ```
 
-<div class="good">
+Recommended workflow:
 
-<strong>Recommended for first-time users:</strong> Begin with the
-included example dataset by setting <code>run_mode \<- “example”</code>
-in Step 1. After the workflow runs successfully, users can switch to
-run_mode \<- “motus_download” or run_mode \<- “existing_rds” and apply
-the same scripts to their own Motus project. Use the single-tag Step 3
-script first for testing, then use the looped Step 3 script for batch
-processing.
+1. Open the included RStudio project.
+2. Restore the package environment with `renv`.
+3. Run Step 1 using `run_mode <- "example"`.
+4. Run Step 2 to estimate inactivity thresholds.
+5. Run the single-dataset Step 3 and inspect its outputs and diagnostic plots.
+6. Once the output looks appropriate, run the looped Step 3 to process all tag datasets.
+7. Review the Step 3 processing log for skipped or failed datasets.
 
-</div>
+Each script has a clearly marked **USER SETTINGS** section near the beginning. New users should generally not need to edit anything below that section.
 
-# Data permissions and usage
+---
 
-The included example detections are provided only for demonstrating and
-testing this workflow. They originate from the Illinois Wood Thrush
-Project and should not be redistributed, republished, or reused outside
-this repository without permission from the project investigators.
+## Requirements
 
-Users applying this pipeline to their own Motus projects are responsible
-for following relevant Motus data-use agreements, project permissions,
-permitting requirements, and collaborator expectations.
+Recommended setup:
 
-# Key concepts and definitions
+| Requirement | Notes |
+|---|---|
+| R | Developed and tested with R 4.5.1 |
+| RStudio | Recommended, but not strictly required |
+| `renv` | Used to restore the recorded package environment |
+| Internet access | Required for package installation and direct Motus downloads |
+| Motus credentials | Required only when using `run_mode <- "motus_download"` |
+| Disk space | Depends strongly on project size and number of detections |
 
-## MotusTagID
+The included example dataset should generally take **approximately 5–10 minutes** to run through the full workflow on a typical desktop computer. Runtime can change substantially for full Motus projects depending on the number of detections, deployments, receivers, and available computing resources.
 
-The Motus-assigned unique tag identifier.
+---
 
-## mfgID
+## Conceptual workflow
 
-The manufacturer ID associated with the tag. This number is not globally
-unique, but it is the number used during hand-tracking and field
-deployment. This therefore helped with personal identification of the
-bird when interpreting the analyses.
-
-In this pipeline, `MotusTagID` and `mfgID` are used together to identify
-a tag dataset.
-
-<div class="warning">
-
-<strong>Important:</strong> `MotusTagID + mfgID` identifies a tag
-dataset, not necessarily one biological bird. Redeployed tags can
-represent multiple biological individuals across time.
-
-</div>
-
-## Band
-
-The USGS bird band number.
-
-In Step 3, `Band` is used with deployment dates to identify true
-biological deployments and resolve redeployed tags correctly.
-
-<div class="warning">
-
-<strong>Important:</strong> Band numbers in the metadata file are stored
-without dashes.
-
-</div>
-
-See here in the example metadata file:
-
-``` text
-Sample_Data/Raw/Metadata/WOTH_IL_Metadata.csv
+```text
+Raw Motus detections
+        │
+        ▼
+STEP 1
+Load or download Motus detections
+Apply motusFilter
+Split detections by MotusTagID × mfgID
+        │
+        ▼
+Individual tag datasets
+        │
+        ▼
+STEP 2
+Assign receiver hardware eras
+Group detections from the same transmission
+Identify presumed inactive periods
+Calculate proportional signal change
+Estimate tag-specific thresholds
+        │
+        ▼
+Tag × receiver-era thresholds
+        │
+        ▼
+Pool thresholds hierarchically by receiver type
+        │
+        ▼
+STEP 3
+Resolve biological deployments
+Restrict detections to the focal receiver site
+Attach receiver-type thresholds
+Classify activity
+Correct isolated telemetry dropouts
+Optionally screen for prolonged inactivity
+        │
+        ▼
+Detection-level activity classifications
+        │
+        ▼
+Hourly activity summaries
+Diagnostic plots
 ```
 
-## Deployment
+In plain language, the pipeline first prepares tag-specific Motus detections, then estimates how much signal variation is expected when an animal is relatively inactive, and finally uses that baseline to classify movement-based activity throughout the detection record.
 
-A biological tagging event defined by:
+---
 
-``` text
-Band + Date_tagged + Date_end
-```
+## What this pipeline is designed to do
 
-Each deployment is processed independently so redeployed tags are not
-mistakenly treated as one continuous individual.
+This workflow estimates **movement-based activity** from automated radiotelemetry detections. It does not directly observe or identify specific behaviors.
 
-## Receiver / tower
+The pipeline was designed to address several common issues in automated radiotelemetry data:
 
-A Motus receiving station. The pipeline uses `recvDeployName` to
-identify towers throughout the workflow.
+- received signal strength varies because of both animal movement and non-biological factors
+- tags can be redeployed on multiple animals
+- receiver hardware can differ in signal scale and variability
+- multiple antennas or receivers can detect the same transmission
+- missed or poor-quality detections can create apparent activity
+- isolated antenna or receiver switches can be telemetry artifacts
+- extended stationary patterns near the end of a deployment may require manual review
 
-## Receiver era
+The resulting activity estimates should therefore be interpreted as a **relative index of movement-based activity**, not as direct behavioral observations.
 
-A time period during which a receiver had a consistent hardware
-configuration.
+---
 
-If a receiver changed hardware during the study period, the pipeline
-splits that receiver into multiple eras. Thresholds are estimated
-separately for each bird × receiver era combination so that hardware
-changes do not influence estimates of inactive signal variation.
+## Repository structure
 
-Example:
+A fresh copy of the repository should look approximately like:
 
-| Era   |           Start date |     End date | Hardware                   |
-|-------|---------------------:|-------------:|----------------------------|
-| Era 1 |           1900-01-01 | `System1End` | `System1` + `DongleType_1` |
-| Era 2 | `System1End + 1 day` |   2100-12-31 | `System2` + `DongleType_2` |
-
-## Dongle type
-
-The dongle is the receiver component that detects radio signals from
-tags.
-
-Dongle type matters because different dongles can differ in:
-
-- Sensitivity
-- Noise levels
-- Signal-processing behavior
-
-Examples:
-
-``` text
-Funcube / Funcube Pro
-RTL-SDR
-Sigma Eight
-```
-
-The current workflow groups dongles into broader dongle families during
-threshold estimation and activity classification.
-
-For example:
-
-- `Funcube`, `Funcube Pro`, and related Funcube variants are treated as
-  `Funcube`
-- Different RTL-SDR versions (for example, v2 and v3) are treated as
-  `RTL`
-
-This grouping accounts for major differences among receiver systems and
-dongle types.
-
-## System
-
-The receiver system used at a tower.
-
-Examples:
-
-``` text
-Sensorgnome
-CTT
-Sigma Eight
-```
-
-Different receiver systems can differ in signal-processing behavior,
-background noise characteristics, and how signal strength values are
-reported or stored. Because these differences can influence signal
-variability, the pipeline groups thresholds by receiver system and
-dongle type.
-
-<div class="warning">
-
-<strong>Important:</strong> This workflow currently requires receiver
-systems that provide usable signal strength (<code>sig</code>) estimates
-in the Motus detection data. The current pipeline was developed and
-tested using CTT, Sensorgnome, and Sigma Eight receiver systems.
-<br><br> Lotek receiver systems do not directly provide dB-scale signal
-strength estimates in the same format. Although this approach should be
-adaptable to Lotek and other receiver systems, it was not tested or
-validated in the current pipeline.
-
-</div>
-
-## Tower type / receiver type
-
-The combined hardware category used for threshold grouping (“Dongle
-type” + “\_” + “System”).
-
-Examples:
-
-``` text
-Funcube_Sensorgnome
-RTL_Sensorgnome
-Funcube_CTT
-SigmaEight_SigmaEight (special case -- Sigma Eight does not have interchangeable dongles)
-```
-
-## Duty cycle
-
-The expected interval between tag detections. This is the same as the
-burst interval used in Motus documentation. It is read from the bird
-metadata (‘Burst_Interval’) for each deployment whenever available.
-
-Example:
-
-``` r
-duty_cycle <- 15
-```
-
-This means the code expects detections approximately every 15 seconds.
-
-## Timing tolerance
-
-Timing tolerance defines how close detections must be to the expected
-duty cycle interval in order to be treated as part of the same expected
-tag burst.
-
-For example:
-
-``` r
-duty_cycle <- 15
-tolerance <- 0.3
-```
-
-means that detections are expected approximately every:
-
-``` text
-14.7–15.3 seconds
-```
-
-The current workflow uses:
-
-``` text
-0.3 seconds
-```
-
-for all supported receiver types.
-
-Timing tolerance is used in two main ways:
-
-1.  To determine whether consecutive detections are close enough in time
-    to calculate valid signal differences
-2.  To group detections from multiple receivers or antenna ports that
-    likely represent the same underlying tag transmission, allowing the
-    pipeline to retain the strongest detection for that expected burst
-
-This tolerance was necessary because the tags we used did not pulse at
-exactly identical intervals, with burst intervals ranging from 14.9-15.1
-seconds. Tolerance can be changed depending on your tag’s specific duty
-cycle. The tolerance window also helps account for small amounts of
-receiver-processing lag, timestamp rounding, and minor variation in
-detection timing across receiver systems.
-
-<div class="callout">
-
-<strong>Why this matters:</strong> Detections occurring far outside the
-expected duty-cycle interval are more likely to represent missed
-detections/bursts or noisy detections rather than continuous biological
-movement.
-
-</div>
-
-## Signal-to-noise ratio (S2N)
-
-Signal-to-noise ratio is calculated as:
-
-``` r
-S2N = sig - noise
-```
-
-where:
-
-- `sig` is the received signal strength
-- `noise` is the background noise level
-
-S2N therefore represents how strongly the tag signal stands out relative
-to background noise.
-
-Higher positive S2N values indicate stronger and more reliable
-detections, whereas low or negative values indicate weak detections that
-may be difficult to distinguish from background noise.
-
-## S2N cutoff
-
-The minimum signal-to-noise ratio required for a detection to be
-trusted.
-
-Current receiver-specific S2N cutoffs are:
-
-| Dongle family | S2N cutoff |
-|:--------------|-----------:|
-| `Funcube`     |          6 |
-| `RTL`         |         10 |
-| `SigmaEight`  |         12 |
-
-Higher S2N cutoffs are generally used for noisier receiver systems to
-reduce false activity caused by poor signal quality. RTL-SDR systems
-often exhibit higher electromagnetic noise floors and greater signal
-variability than Funcube systems, which typically produce more stable
-signals with lower internal noise. The RTL and Funcube cutoffs used here
-are broadly consistent with default Motus pulse-finder settings, where
-RTL-SDR systems typically use higher signal thresholds than Funcube
-systems (TvE 2024).
-
-### Reference
-
-TvE (2024) RTL-SDR vs. FUNcube – stations/receivers. Motus Community
-Forum. <https://community.motus.org/t/rtl-sdr-vs-funcube/770>. Accessed
-18 March 2026.
-
-## sig_diff
-
-The difference in signal strength between consecutive detections.
-
-Conceptually:
-
-``` r
-sig_diff = current signal - previous signal
-```
-
-Measured in dB.
-
-## sig_ratio
-
-The proportional signal change between consecutive detections,
-calculated from the dB-scale signal difference. Because signal strength
-is recorded on a logarithmic dB scale, identical biological movements
-can produce different absolute dB changes depending on distance from the
-receiver. To reduce this effect, the pipeline converts signal
-differences into proportional changes before estimating thresholds.
-
-A value of 1 indicates no change in signal strength between consecutive
-detections, values greater than 1 indicate signal increases, and values
-less than 1 indicate signal decreases.
-
-``` r
-sig_ratio = 10^(sig_diff / 10)
-```
-
-This converts dB-scale signal differences into a linear power ratio. The
-goal is to compare the **relative change** between consecutive
-detections rather than only the absolute dB difference.
-
-For example, a bird moving 15 meters while very close to a receiver may
-produce a relatively large signal-strength shift (for example, from
-`-40 dB` to `-43 dB`), whereas the same movement farther from the
-receiver may produce only a small absolute change (for example, from
-`-85 dB` to `-85.3 dB`). If activity were estimated using only raw dB
-differences, movements near the receiver could appear artificially more
-active than similar movements farther away. By converting signal
-differences to proportional changes, the pipeline attempts to place
-signal variation on a more biologically comparable relative scale.
-
-<img src="Sample_Data/Example_Figures/Proportional_Signal_Graphic.png" width="85%" style="display: block; margin: auto;" />
-
-**Figure:** Illustration of how proportional signal change helps
-partially account for distance-related effects on logarithmic signal
-strength, improving activity estimation across varying receiver
-distances.
-
-## ln_sig_ratio
-
-The natural log of proportional signal change:
-
-``` r
-ln_sig_ratio = log(sig_ratio)
-```
-
-The threshold workflow uses this scale to estimate nighttime
-variability.
-
-Nighttime detections are used to estimate the expected distribution of
-relatively inactive signal variation. Thresholds are then calculated
-from the spread of these nighttime values.
-
-<img src="Sample_Data/Example_Figures/Nighttime_Threshold_Histogram.png" width="85%" style="display: block; margin: auto;" />
-
-**Figure:** Example nighttime distribution of `ln_sig_ratio` values for
-one individual (`mfgID = 136`). Transforming proportional signal change
-onto the natural log scale centers inactive variation around zero and
-helps quantify the spread of expected nighttime signal variability used
-for threshold estimation. Dashed lines represent the estimated lower and
-upper activity thresholds.
-
-## Inactive baseline
-
-The subset of detections used to estimate expected signal variation when
-the bird is assumed to be relatively inactive.
-
-For Wood Thrushes, this pipeline uses nighttime detections:
-
-``` r
-timing %in% c("night_1", "night_2")
-```
-
-Importantly, the pipeline does not assume that all nighttime detections
-represent complete inactivity. Small roost shifts, posture adjustments,
-vegetation movement, atmospheric conditions, and receiver-related
-variability can still produce signal fluctuations at night. Instead,
-nighttime detections are used to estimate the typical distribution of
-relatively inactive signal variation. Later threshold calculations then
-define expected inactive variation conservatively as approximately ±2
-standard deviations (~95%) around this nighttime baseline on the
-proportional signal-change scale. Detections outside this expected range
-are subsequently treated as potential movement-related activity.
-
-## Activity threshold
-
-The upper and lower bounds of expected inactive signal variation.
-
-Signal changes outside these bounds are treated as potential movement.
-
-Thresholds are estimated on the proportional scale and saved as both:
-
-| Threshold type | Used for classification? | Purpose |
-|----|----|----|
-| `lower_ratio`, `upper_ratio` | Yes | Main activity classification |
-| `lower_db`, `upper_db` | Mostly diagnostic | Plotting and interpretation |
-
-## Active detection
-
-A detection is classified as active when the change in signal strength
-suggests activity and the detection passes quality-control filters.
-
-Depending on the stage of the workflow, activity may be inferred from:
-
-1.  Proportional signal change outside inactivity threshold bounds
-2.  Antenna/port switching
-3.  Receiver switching
-4.  Timing within the expected duty cycle tolerance
-5.  Adequate S2N
-6.  Dropout correction
-
-## Stationary-tag screen
-
-The stationary-tag screen is an optional diagnostic tool in Step 3.
-
-It evaluates whether the final daytime portion of a deployment shows a
-sustained low-variation signal pattern concentrated on one receiver. The
-goal is to identify deployments that may represent unusually stationary
-signal behavior near the end of the detection record.
-
-The screen evaluates several factors simultaneously, including:
-
-- whether detections became concentrated on one focal receiver
-- whether valid signal differences remained mostly within the expected
-  inactive threshold bounds
-- whether average signal variation became unusually low
-- whether enough valid consecutive detections were available for
-  evaluation
-
-Because the screen uses daytime detections rather than nighttime
-detections, it is intended to identify signal patterns that are
-unusually stationary relative to expected daytime movement behavior in a
-diurnal species. The time period investigated for inactivity can be
-altered if your species has different diel activity patterns, such as
-nocturnal, crepuscular, migratory, or seasonally variable behavior.
-
-This can indicate possible:
-
-- dropped tag
-- mortality
-- stationary transmitter
-- prolonged inactivity
-- receiver-specific artifact
-
-The stationary-tag screen does not modify the activity classification
-itself. Instead, it generates diagnostic tables and plots that can be
-reviewed alongside activity summaries and detection timelines.
-
-<div class="warning">
-
-<strong>Important:</strong> The stationary-tag screen is not
-confirmation of mortality or tag loss. It is a conservative flag for
-manual review using maps, detection timelines, receiver metadata, and
-biological context.
-
-</div>
-
-# Repository structure
-
-The repository is organized into raw inputs, helper functions, example
-data, and output folders generated during the workflow.
-
-A fresh copy of the repository should initially look similar to:
-
-``` text
+```text
 Telemetry_Activity_Pipeline/
-├── CITATION.cff
-├── LICENSE
-├── README.Rmd
-├── README.md
-├── README.html
-├── renv.lock
-├── renv/
-│   ├── activate.R
-│   └── settings.json
-│
-├── Helper_Functions/
-│   ├── Activity_Timing_Functions.R
-│   └── Diagnostic_Plots_Functions.R
-│
-├── Sample_Data/
-│   ├── Raw/
-│   │   ├── Raw_Tower/
-│   │   │   └── Example_Allerton_WOTH_052525_060225.rds
-│   │   └── Metadata/
-│   │       ├── Tower_Metadata.csv
-│   │       └── WOTH_IL_Metadata.csv
-│   │
-│   └── Example_Figures/
-│       ├── Proportional_Signal_Graphic.png
-│       ├── Nighttime_Threshold_Histogram.png
-│       ├── Example_Averaged_Hourly_Activity.png
-│       └── ...
 │
 ├── Step1_Motus_to_Individual_Birds.R
 ├── Step2_Activity_Threshold_Calculation.R
 ├── Step3_Activity_Classification.R
 ├── Step3_LOOP_Activity_Classification.R
+│
+├── Helper_Functions/
+│   ├── Activity_Timing_Functions.R
+│   ├── Diagnostic_Plots_Functions.R
+│   └── Step3_Activity_Functions.R
+│
+├── Sample_Data/
+│   ├── Raw/
+│   │   ├── Raw_Tower/
+│   │   │   └── Example_Allerton_WOTH_052525_060225.RDS
+│   │   │
+│   │   └── Metadata/
+│   │       ├── Tower_Metadata.csv
+│   │       └── WOTH_IL_Metadata.csv
+│   │
+│   └── Example_Figures/
+│       ├── Daily_Daytime_Activity.png
+│       ├── Daily_Detected_vs_Expected.png
+│       ├── Daily_Detected_vs_Expected_TimeOfDay.png
+│       ├── Duty_cycle.png
+│       ├── Example_Averaged_Hourly_Activity.png
+│       ├── Example_Dropout_Correction.png
+│       ├── Example_Dropout_Plot.png
+│       ├── Nighttime_Threshold_Histogram.png
+│       ├── Proportional_Signal_Graphic.png
+│       ├── Signal_Difference.png
+│       └── Stationary_Tag_Screen.png
+│
+├── renv/
+├── renv.lock
+├── CITATION.cff
+├── LICENSE
 └── Telemetry_Activity_Pipeline.Rproj
 ```
 
-## Generated workflow outputs
+Running the workflow creates additional `Sample_Data/Interim/` and `Sample_Data/Processed/` outputs automatically.
 
-After running the pipeline, additional folders and files are created
-automatically.
+---
 
-Example output structure:
+# Before running the pipeline
 
-``` text
-Sample_Data/
-├── Interim/
-│   └── Motus_Tower_Data_Filtered/
-│       ├── all_birds_thresholds_summaryExampleAllerton.csv
-│       ├── all_birds_threshold_resultsExampleAllerton.rds
-│       ├── threshold_hist_plots/
-│       ├── 93371_136_ExampleAllerton_051226_MotusFiltered/
-│       ├── 93378_143_ExampleAllerton_051226_MotusFiltered/
-│       └── ...
-│
-├── Processed/
-│   ├── 93371_136_Band323154863_MotusFiltered_classified/
-│   │   ├── plots/
-│   │   ├── *_ActivityWide.csv
-│   │   ├── *_ActivityPerHourPerDay.csv
-│   │   ├── *_ActivityPerHourSummary.csv
-│   │   ├── *_StationaryTagScreen.csv
-│   │   └── *_StationaryTagScreen_LateData.csv
-│   └── ...
+## Open the R project
+
+Open:
+
+```text
+Telemetry_Activity_Pipeline.Rproj
 ```
 
-The exact folder structure can be changed, but the scripts must be
-updated to match the correct file paths.
+rather than opening individual scripts from outside the project.
 
-# Required R packages
+This allows `here::here()` to resolve repository-relative paths correctly.
 
-Across the workflow, the scripts use the following packages:
+---
 
-``` r
-required_packages <- c(
-  "motus",
-  "DBI",
-  "RSQLite",
-  "dplyr",
-  "tidyr",
-  "readr",
-  "purrr",
-  "lubridate",
-  "stringr",
-  "suncalc",
-  "lutz",
-  "here",
-  "slider",
-  "ggplot2",
-  "patchwork",
-  "scales",
-  "zoo",
-  "tibble",
-  "magrittr",
-  "conflicted",
-  "vroom"
-)
+## Restore the package environment
+
+The repository uses `renv` to help reproduce the package environment used during development.
+
+If `renv` is not installed:
+
+```r
+install.packages("renv")
 ```
 
-Step 1 automatically attempts to activate the project `renv`
-environment, restore packages from `renv.lock`, and install any
-still-missing packages. Steps 2 and 3 also activate `renv` if available,
-but assume the package environment has already been set up.
+Then, from the project root:
 
-# Required custom functions
-
-The current workflow requires two custom “helper” function files:
-
-``` text
-Helper_Functions/
-├── Activity_Timing_Functions.R
-└── Diagnostic_Plots_Functions.R
+```r
+renv::restore()
 ```
 
-| Function file | Used in | Purpose |
-|----|----|----|
-| `Activity_Timing_Functions.R` | Steps 2 and 3 | Diel timing and core activity-classification functions |
-| `Diagnostic_Plots_Functions.R` | Step 3 | Diagnostic plotting functions |
+The scripts also attempt to activate the project `renv` environment automatically.
 
-<div class="warning">
+If a required package is still unavailable, the scripts will stop and identify the missing package rather than silently continuing with an incomplete environment.
 
-<strong>Before running:</strong> Make sure the <code>source()</code>
-paths in the scripts point to the correct location of these activity
-function files.
+---
 
-</div>
+## Included example dataset
 
-# Required input data
+The repository includes a small real-data example:
 
-## Motus detection data
-
-Step 1 supports three input modes.
-
-### Option A: Included example dataset
-
-For first-time users:
-
-``` r
-run_mode <- "example"
+```text
+Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.RDS
 ```
 
-This loads:
+The example contains **real Wood Thrush detections subsampled to approximately one week at an Illinois breeding site monitored by two Motus receivers**. It is intentionally small so users can test the workflow before processing a full project.
 
-``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
+The example is intended to let new users test:
+
+- file paths
+- Motus filtering
+- tag-level splitting
+- threshold estimation
+- activity classification
+- hourly summaries
+- stationary-tag screening
+- diagnostic plot generation
+
+before working with a full Motus project.
+
+The example dataset is a flattened Motus-style detection table. Step 1 can also begin from a full Motus project download or from another existing alltags-style `.RDS` file.
+
+The full example workflow should generally run in about **5–10 minutes**, although runtime will vary among computers.
+
+---
+
+# Required metadata
+
+Two metadata files are used throughout the workflow:
+
+```text
+Sample_Data/Raw/Metadata/WOTH_IL_Metadata.csv
+Sample_Data/Raw/Metadata/Tower_Metadata.csv
 ```
 
-This file contains a small subset of individuals from the Illinois Wood
-Thrush Project Motus project 787 at the Allerton and Allerton South
-towers from May 25–June 2, 2025.
+The included files provide examples of the expected structure.
 
-------------------------------------------------------------------------
+## Deployment metadata
 
-### Option B: Existing alltags-style `.rds` file
+At minimum, the current workflow expects:
 
-Users who already have a flattened Motus-style detection table can load
-it directly without downloading a `.motus` database.
+| Column | Purpose |
+|---|---|
+| `motusTagID` | Motus tag identifier |
+| `mfgID` | Manufacturer tag identifier |
+| `Band` | Identifies the biological individual/deployment |
+| `Date_tagged` | Deployment start date |
+| `Date_end` | Deployment end date |
+| `Lat` | Used for local time and diel periods |
+| `Lon` | Used for local time and diel periods |
+| `Burst_Interval` | Programmed transmitter burst interval in seconds |
 
-Example:
+`Time_tagged` is optional but strongly recommended. If unavailable, Step 3 assumes the deployment began at `00:00:00` on `Date_tagged`.
 
-``` r
-run_mode <- "existing_rds"
-
-existing_alltags_rds <- "//path/to/your/alltags_file.rds"
-```
-
-This mode is useful when:
-
-- sharing processed Motus detection tables among collaborators
-- working from a network drive
-- reusing previously flattened alltags files
-- applying the pipeline to archived projects
-- avoiding repeated Motus downloads
-
-The `.rds` file should contain a Motus-style detection table that
-includes at minimum:
-
-| Required column  | Purpose                    |
-|------------------|----------------------------|
-| `motusTagID`     | Tag dataset ID             |
-| `mfgID`          | Manufacturer ID            |
-| `motusFilter`    | Standard Motus filter flag |
-| `sig`            | Signal strength            |
-| `noise`          | Background noise           |
-| `recvDeployName` | Receiver name              |
-
-Timestamp columns can be stored as:
-
-``` text
-time
-tsCorrected
-ts
-```
-
-The script automatically standardizes these during loading.
-
-------------------------------------------------------------------------
-
-### Option C: Full Motus project download
-
-For users downloading directly from Motus:
-
-``` r
-run_mode <- "motus_download"
-```
-
-The script then downloads data using:
-
-``` r
-tagme(
-  projRecv = projRecv_id,
-  dir = motus_database_dir,
-  new = create_new_db
-)
-```
-
-This creates or updates a `.motus` SQLite database, which is then
-flattened into a standard R dataframe.
-
-If downloading a Motus project for the first time, the R console may
-prompt for Motus login credentials before the workflow continues.
-
-The login/download step occurs once before the individual-tag processing
-loop begins.
-
-## Metadata structure notes
-
-### Bird metadata rows
-
-Each row in the bird metadata represents one biological deployment, not
-necessarily one unique tag or one unique bird across all years.
-
-For downstream analyses, each unique `Year × Band × deployment`
-combination should have its own row. This is important because a bird’s
-metadata can change among years or deployments. For example, the same
-banded bird may be recorded in a later year with a different age class,
-mass, condition score, deployment period, or transmitter.
-
-Similarly, the same `motusTagID × mfgID` can appear in multiple rows if
-a tag was redeployed on a different bird, in a different year, or during
-a different field season.
-
-<div class="warning">
-
-<strong>Important:</strong> The pipeline uses <code>motusTagID</code>,
-<code>mfgID</code>, <code>Band</code>, and deployment dates to separate
-true biological deployments. This prevents detections from a redeployed
-tag from being treated as one continuous bird.
-
-</div>
-
-### Minimum required bird metadata
-
-The pipeline can use many metadata fields, but only a subset are
-required for core functionality. Other columns are strongly recommended
-because they improve deployment resolution or activity estimation.
-
-| Column | Requirement | Notes |
-|----|----|----|
-| `motusTagID` | **Required** | Used with `mfgID` to identify each tag dataset. |
-| `mfgID` | **Required** | Used with `motusTagID` to identify each tag dataset. |
-| `Lat` | **Required** | Used to calculate local sunrise, sunset, and diel timing. |
-| `Lon` | **Required** | Used to calculate local sunrise, sunset, and diel timing. |
-| `Date_tagged` | **Required** | Defines the start of the biological deployment. |
-| `Band` | **Strongly recommended** | Used with deployment dates to distinguish biological deployments and resolve redeployed tags. |
-| `Date_end` | **Strongly recommended** | Defines the end of the deployment window and prevents detections outside the intended study period from being included. |
-| `Time_tagged` | **Strongly recommended** | Prevents detections collected before release or during handling from being included in activity estimation. |
-| `Burst_Interval` | **Recommended** | Allows deployment-specific duty cycles to be used automatically. If unavailable, users can specify a fixed `duty_cycle` in the script. |
-
-### Bird metadata columns
-
-| Column | Description | How the pipeline uses it |
-|----|----|----|
-| `State` | State or broad study-region label | Primarily retained for organization and interpretation |
-| `Site_tagged` | General site where the bird was tagged | Primarily retained for biological interpretation, deployment organization, and downstream analyses |
-| `recvDeployName` | Closest Motus receiver/tower to the tagging location | Retained primarily for interpretation and metadata tracking |
-| `Year` | Field season or deployment year | Primarily informational |
-| `Lat`, `Lon` | Deployment location | Used for sunrise/sunset and diel timing calculations via `info_fast()` |
-| `Date_tagged` | Date the tag was deployed on the bird | Used to define the beginning of the deployment window |
-| `Date_end` | Final date detections should be included for that deployment | Used to define the end of the deployment window |
-| `Time_tagged` | Local time of transmitter deployment | Used in Step 3 to prevent detections collected before tagging or immediately during handling/release from being included in activity estimation |
-| `Burst_Interval` | Programmed tag burst interval (miliseconds) | Used to determine the expected duty cycle for each deployment during threshold estimation and activity classification. If unavailable, the user can specify a fixed duty_cycle in the script. |
-| `Species` | Species alpha/banding code | Primarily informational |
-| `Band` | Bird band number used to identify the biological individual/deployment | Used with deployment dates to resolve redeployments and separate true biological deployments |
-| `motusTagID` | Unique Motus tag identifier | Used with `mfgID` to identify tag datasets |
-| `mfgID` | Manufacturer tag identifier; not globally unique | Used with `motusTagID` to identify tag datasets |
-| `Age`, `Sex`, `How Aged` | Biological metadata | Retained for interpretation and downstream analyses |
-| `Mass`, `Tarsus`, `Wing`, `Tail`, `Fat`, `Muscle` | Morphological and condition measurements | Retained for interpretation and downstream analyses |
+A `MotusTagID × mfgID` identifies a **tag dataset**, not necessarily one biological individual. Tags can be redeployed. Step 3 therefore uses `Band`, `Date_tagged`, and `Date_end` to separate biological deployments.
 
 ### Why `Date_end` matters
 
-`Date_end` is strongly recommended. In this workflow, it defines the
-last date that detections should be treated as part of a given
-biological deployment.
+`Date_end` prevents detections outside the intended biological deployment from being included. This is particularly important when:
 
-For breeding-ground activity analyses, `Date_end` can be used to exclude
-detections after the bird likely left the breeding site, after the tag
-may have been dropped, or after detections may represent migration or
-nonlocal movement. This helps prevent later detections from being
-incorrectly included in breeding-ground activity summaries.
+- a tag is redeployed
+- a study focuses on one stationary period
+- the animal leaves the focal receiver array
+- migration or dispersal detections should be excluded
+- detections continue after possible tag loss or mortality
 
-`Date_end` is especially important when:
-
-- a tag was redeployed on another bird
-- the study only wants activity from a specific season or site
-- detections continue after the focal biological period
-- migration or dispersal detections should be excluded from local
-  activity summaries
-
-If `Date_end` is missing, the script can still run, but detections may
-be retained until the next deployment of that same tag or until the end
-of the detection record. This can unintentionally include detections
-from migration, dispersal, wintering areas, or unrelated receiver arrays
-outside the intended study period.
-
-<div class="warning">
-
-<strong>Important:</strong> If birds continue to be detected during
-migration on receivers that are not included in the provided
-<code>Tower_Metadata.csv</code> file, those detections will not have
-matching receiver metadata or receiver-type thresholds. As a result,
-activity from those receivers cannot be classified by the workflow
-unless the relevant receiver metadata and threshold information are
-added.
-
-</div>
+If `Date_end` is missing, the script can use the next deployment of the same tag to limit the current deployment. If there is no later deployment, detections may continue to the end of the available record.
 
 ### Why `Time_tagged` matters
 
-`Time_tagged` is also strongly recommended because it defines when
-activity estimation should begin within the tagging day.
+`Time_tagged` helps exclude detections recorded before release or during handling on the deployment day.
 
-Without `Time_tagged`, the workflow must assume the deployment began at
-the start of the tagging date (`00:00:00`). This can unintentionally
-retain detections collected before release or during handling
-immediately after tagging.
+This can be especially important when tags are activated before deployment.
 
-Including `Time_tagged` helps ensure that activity estimates represent
-post-release behavior rather than capture or handling effects.
+---
 
-<div class="warning">
+## Receiver metadata
 
-<strong>Important:</strong> `Time_tagged` is especially important for
-users who turn their tags on days or weeks in advance of actual tag
-deployment.
+The minimum primary receiver fields are:
 
-</div>
+| Column | Purpose |
+|---|---|
+| `recvDeployName` | Must match receiver names in Motus data |
+| `DongleType_1` | Primary dongle/hardware type |
+| `System1` | Primary receiver system |
 
-### Tower metadata rows
+For receivers that changed hardware, also provide:
 
-Each row in the tower metadata represents one receiver deployment or
-receiver site. The pipeline uses this file to assign each detection to
-the correct receiver hardware type.
+```text
+System1End
+DongleType_2
+System2
+```
 
-This is important because thresholds are grouped by receiver hardware
-configuration, and different receiver systems or dongle types can have
-different signal-strength behavior.
-
-### Minimum required tower metadata
-
-| Column | Requirement | Notes |
-|----|----|----|
-| `recvDeployName` | **Required** | Must exactly match `recvDeployName` in the Motus detection data. |
-| `DongleType_1` | **Required** | Used to assign receiver-specific parameters and thresholds. |
-| `System1` | **Required** | Used to define the receiver hardware configuration. |
-| `System1End` | **Recommended** | Needed when receiver hardware changed during the study. |
-| `DongleType_2` | **Recommended if applicable** | Used for the second receiver era after a hardware change. |
-| `System2` | **Recommended if applicable** | Used for the second receiver era after a hardware change. |
-
-### Tower metadata columns
-
-| Column | Description | How the pipeline uses it |
-|----|----|----|
-| `State` | State or broad study-region label | Primarily retained for organization and interpretation |
-| `recvDeployName` | Receiver name; must match `recvDeployName` in the Motus detection data | Required for matching detections to receiver metadata and thresholds |
-| `Site` | Study site or receiver group | Primarily retained for interpretation; can help define multi-receiver sites |
-| `recvDeployID` | Motus receiver deployment ID | Retained mainly for metadata tracking |
-| `Lat`, `Lon` | Receiver location | Primarily retained for interpretation and mapping |
-| `County` | County where the receiver is located | Retained for metadata and interpretation |
-| `NumberOfAntennas` | Number of antennas at the receiver | Primarily informational |
-| `Antenna_Numbers` | Antenna ports expected at that receiver | Can assist with interpreting antenna-port behavior and diagnostics |
-| `DongleType_1` | Dongle type during the first receiver era | Used to define receiver/tower type and assign thresholds |
-| `DongleType_2` | Dongle type during the second receiver era, if hardware changed | Used when constructing later receiver eras |
-| `Antenna` | Antenna type or antenna notes | Primarily informational |
-| `System1` | Receiver system during the first receiver era | Used to define receiver/tower type and assign thresholds |
-| `System2` | Receiver system during the second receiver era, if hardware changed | Used when constructing later receiver eras |
-| `System1End` | Last date of the first receiver era | Used to split receivers into hardware eras |
-| `Dongle_notes` | Notes about dongles or hardware | Informational |
-| `Notes` | Additional receiver notes | Informational |
+If no second receiver system exists, these fields may be left blank. The pipeline standardizes optional all-`NA` columns to character values so they do not cause logical-versus-character errors.
 
 ### Receiver hardware changes
 
-If a receiver changed hardware during the study, the tower metadata
-should describe both hardware eras.
-
 For example:
 
-``` text
+```text
 DongleType_1 = SigmaEight
 System1 = SigmaEight
 System1End = 2024-06-07
 
-DongleType_2 = Funcube
-System2 = Sensorgnome
+DongleType_2 = FUNcube
+System2 = SensorGnome
 ```
 
-The pipeline interprets this as:
+is interpreted as:
 
-| Era   | Date range               | Receiver type           |
-|-------|--------------------------|-------------------------|
-| Era 1 | 1900-01-01 to 2024-06-07 | `SigmaEight_SigmaEight` |
-| Era 2 | 2024-06-08 to 2100-12-31 | `Funcube_Sensorgnome`   |
+| Era | Date range | Receiver type |
+|---|---|---|
+| 1 | through 2024-06-07 | `SigmaEight_SigmaEight` |
+| 2 | beginning 2024-06-08 | `FUNcube_SensorGnome` |
 
-<div class="warning">
+Receiver names in `Tower_Metadata.csv` must match `recvDeployName` in the Motus detection data.
 
-<strong>Important:</strong> Receiver names in
-<code>Tower_Metadata.csv</code> must exactly match
-<code>recvDeployName</code> in the detection data.
+---
 
-</div>
+# Key concepts
 
-<div class="warning">
+## MotusTagID and mfgID
 
-<strong>Date format:</strong> ISO format (YYYY-MM-DD) in Metadata is
-strongly recommended for consistency, although the workflow can also
-parse common month/day/year formats.
+`MotusTagID` is the Motus-assigned tag identifier.
 
-</div>
+`mfgID` is the transmitter manufacturer's identifier.
 
-# Step 1: Load/download and split Motus data
+The pipeline uses them together to identify a tag dataset:
+
+```text
+MotusTagID × mfgID
+```
+
+A tag dataset can contain more than one biological deployment if the transmitter was redeployed.
+
+---
+
+## Band
+
+`Band` is used to distinguish biological individuals/deployments within a tag dataset.
+
+Step 3 output folders therefore include the band number.
+
+---
+
+## Receiver era
+
+A receiver era is a period during which receiver hardware remained consistent.
+
+If a receiver changed system or dongle type, detections before and after that change are treated as separate hardware eras.
+
+---
+
+## Receiver type
+
+The pipeline combines dongle family and receiver system to define a receiver type, for example:
+
+```text
+FUNcube_SensorGnome
+RTL_SensorGnome
+SigmaEight_SigmaEight
+```
+
+Thresholds are ultimately pooled by receiver type.
+
+---
+
+## Burst interval
+
+`Burst_Interval` is the programmed interval between transmitter bursts, in **seconds**.
+
+For example:
+
+```text
+Burst_Interval = 15
+```
+
+means the transmitter is expected to emit a burst approximately every 15 seconds.
+
+---
+
+## Transmission-event tolerance
+
+A single transmitted burst may be recorded by multiple antennas or nearby receivers at slightly different timestamps.
+
+The pipeline uses:
+
+```r
+transmission_event_tolerance <- 0.3
+```
+
+seconds to identify detections likely belonging to the same transmission event.
+
+This means `0.3` seconds = **300 milliseconds**.
+
+This is distinct from the burst-interval timing tolerance used to determine whether two consecutive transmission events occurred approximately one programmed burst interval apart.
+
+---
+
+## Signal-to-noise ratio
+
+Signal-to-noise ratio is calculated as:
+
+```r
+SNR = sig - noise
+```
+
+The code currently stores receiver-specific thresholds in the column `S2N_cutoff`.
+
+Default study values are:
+
+| Receiver/dongle family | Cutoff |
+|---|---:|
+| `FUNcube` | 6 |
+| `RTL` | 10 |
+| `SigmaEight` | 12 |
+
+These values can be changed when adapting the framework to other receiver systems.
+
+---
+
+## Signal difference
+
+For valid consecutive detections:
+
+```r
+sig_diff = current signal - previous signal
+```
+
+`sig_diff` is measured in dB.
+
+---
+
+## Proportional signal change
+
+The framework converts dB differences to a linear power ratio:
+
+```r
+sig_ratio = 10^(sig_diff / 10)
+```
+
+A value of `1` indicates no change.
+
+Values greater than `1` indicate an increase in received signal strength, whereas values below `1` indicate a decrease.
+
+---
+
+## Inactive baseline
+
+Step 2 estimates expected signal variation during a period when the animal is assumed to be relatively inactive.
+
+For breeding Wood Thrushes, this is nighttime:
+
+```r
+timing %in% c("night_1", "night_2")
+```
+
+The inactive period should be reconsidered for species with different diel activity patterns.
+
+---
+
+# Why proportional signal change?
+
+![Proportional signal-change concept](Sample_Data/Example_Figures/Proportional_Signal_Graphic.png)
+
+Received signal strength is recorded on a logarithmic dB scale. Consequently, a similar change in transmitter position can produce different absolute changes in received signal strength depending on transmitter-receiver distance and other propagation conditions.
+
+The framework converts consecutive dB differences into proportional signal changes:
+
+```r
+sig_ratio = 10^(sig_diff / 10)
+```
+
+This does not eliminate all distance-related variation, but it reduces reliance on raw absolute dB changes and provides a more comparable measure of relative signal change across transmitter-receiver distances.
+
+---
+
+# Step 1 — Prepare Motus detections
 
 ## Script
 
-``` text
+```text
 Step1_Motus_to_Individual_Birds.R
 ```
 
 ## Purpose
 
-Step 1 downloads Motus project data, flattens the `.motus` database into
-a regular R dataframe, applies the standard Motus filter, and saves
-individual tag-level files. Essentially, this step prepares Motus
-detections for the rest of the workflow.
+Step 1 loads Motus detections, applies the standard Motus filter, standardizes timestamps, and creates one dataset for each `MotusTagID × mfgID`.
 
-It can run in three modes:
+## Input modes
 
-| Mode | Setting | What it does |
-|----|----|----|
-| Example mode | `run_mode <- "example"` | Loads the included example dataset |
-| Existing RDS mode | `run_mode <- "existing_rds"` | Loads an already-existing alltags-style `.rds` file |
-| Motus download mode | `run_mode <- "motus_download"` | Downloads or updates a full Motus project |
+### Example
 
-After loading data, all modes follow the same workflow:
-
-1.  Check required columns
-2.  Apply `motusFilter == 1` to retain detections that passed the
-    standard Motus filtering process
-3.  Identify unique `MotusTagID × mfgID`
-4.  Save one `.rds` and one `.csv` per tag dataset
-
-## Main settings to edit
-
-### Run mode
-
-Choose one:
-
-#### Example mode
-
-``` r
+```r
 run_mode <- "example"
 ```
 
-Loads the included example dataset packaged with the repository.
+Loads the included example dataset.
 
-------------------------------------------------------------------------
+### Existing alltags-style RDS
 
-#### Existing `.rds` mode
-
-``` r
+```r
 run_mode <- "existing_rds"
 ```
 
-Loads an already-existing flattened Motus-style `.rds` detection table.
+Loads an existing flattened Motus-style `.RDS` file.
 
-------------------------------------------------------------------------
+### Motus download
 
-#### Motus download mode
-
-``` r
+```r
 run_mode <- "motus_download"
 ```
 
-Downloads or updates a Motus project database and extracts the `alltags`
-table.
+Downloads or updates a Motus project database and extracts the `alltags` table.
 
-------------------------------------------------------------------------
+When `motus_download` is used, Motus login may be requested in the R console before the download begins.
 
-### Example mode settings
+In a new project, replace the project placeholder in the USER SETTINGS with the appropriate Motus project ID:
 
-``` r
-example_rds <- here(
-  "Sample_Data",
-  "Raw",
-  "Raw_Tower",
-  "Example_Allerton_WOTH_052525_060225.rds"
-)
+```r
+projRecv_id <- YOUR_PROJECT_ID
 ```
 
-------------------------------------------------------------------------
+## Timestamp handling
 
-### Existing `.rds` mode settings
+The original Motus `ts` field is used as the authoritative detection timestamp.
 
-``` r
-existing_alltags_rds <- "//path/to/your/alltags_file.rds"
+`ts` represents seconds since the Unix epoch in UTC and is converted using:
+
+```r
+lubridate::as_datetime(ts, tz = "UTC")
 ```
 
-------------------------------------------------------------------------
+The pipeline does **not** require an existing `time` column.
 
-### Motus download settings
+Local time is assigned later from deployment coordinates.
 
-``` r
-projRecv_id <- 787
+## Step 1 output naming
+
+Folders follow:
+
+```text
+<MotusTagID>_<mfgID>_<dataset_label>_<MMDDYY>_MotusFiltered
 ```
 
-------------------------------------------------------------------------
+For example:
 
-### Shared output/path settings
-
-``` r
-state_label <- "IL"
-
-project_label <- "IL_WOTH"
-
-motus_database_dir <- here(
-  "Sample_Data",
-  "Raw",
-  "Raw_Tower"
-)
-
-filtered_indiv_dir <- here(
-  "Sample_Data",
-  "Interim",
-  "Motus_Tower_Data_Filtered"
-)
+```text
+84746_160_ExampleAllerton_081126_MotusFiltered
 ```
 
-------------------------------------------------------------------------
+The six-digit field records the date on which Step 1 was run and can therefore differ among users and downloads.
 
-### Setting descriptions
+Each folder contains:
 
-| Setting | Meaning |
-|----|----|
-| `run_mode` | Controls how Step 1 loads Motus detections |
-| `example_rds` | Path to the included example dataset |
-| `existing_alltags_rds` | Path to an already-existing flattened Motus-style `.rds` file |
-| `projRecv_id` | Motus project ID used when downloading data. This can typically be found on the Motus website under your project page URL or in the project metadata. |
-| `state_label` | Short label used in output filenames |
-| `project_label` | Label used when saving flattened alltags files |
-| `motus_database_dir` | Folder for `.motus` databases and flattened alltags files |
-| `filtered_indiv_dir` | Folder where individual tag datasets are saved |
-
-## Running Step 1 with the example dataset
-
-To use the included example data:
-
-``` r
-run_mode <- "example"
+```text
+*.RDS
+*.csv
 ```
 
-The script loads:
+The RDS file is used downstream. The CSV is provided for easier inspection outside R.
 
-``` text
-Sample_Data/Raw/Raw_Tower/Example_Allerton_WOTH_052525_060225.rds
-```
+---
 
-When example mode is used, the script automatically updates the output
-labels:
-
-``` r
-state_label <- "ExampleAllerton"
-project_label <- "Example_Allerton_June2025"
-```
-
-The script applies:
-
-``` r
-df_filtered <- df_alltags %>%
-  filter(motusFilter == 1)
-```
-
-before saving one file per tag dataset.
-
-It also saves a reproducible copy of the example alltags-style file.
-
-## Running Step 1 with a full Motus project
-
-To download a real Motus project:
-
-``` r
-run_mode <- "motus_download"
-
-projRecv_id <- 787 # Update with your Motus project ID
-
-state_label <- "IL"
-project_label <- "IL_WOTH"
-
-source("Step1_Motus_to_Individual_Birds.R")
-```
-
-Then update the paths as needed.
-
-If downloading a Motus project for the first time, the R console may
-prompt for Motus login credentials before the workflow continues.
-
-------------------------------------------------------------------------
-
-## Running Step 1 with an existing alltags `.rds` file
-
-``` r
-run_mode <- "existing_rds"
-
-existing_alltags_rds <- "//path/to/your/alltags_file.rds"
-
-state_label <- "IL"
-project_label <- "WOTH"
-
-source("Step1_Motus_to_Individual_Birds.R")
-```
-
-Example:
-
-``` r
-run_mode <- "existing_rds"
-
-existing_alltags_rds <- "//Desktop/Telemetry_Activity_Pipeline/raw/
-df_alltagsWOTH.rds"
-
-state_label <- "WOTH"
-project_label <- "IL"
-
-source("Step1_Motus_to_Individual_Birds.R")
-```
-
-This mode allows users to run the workflow from an already-existing
-flattened Motus-style detection table without downloading or updating a
-`.motus` database.
-
-## Step 1 outputs
-
-For each tag dataset, Step 1 saves:
-
-| Output                         | File type | Description                    |
-|--------------------------------|-----------|--------------------------------|
-| Individual Motus-filtered file | `.rds`    | Main file used downstream      |
-| Individual Motus-filtered file | `.csv`    | Spreadsheet-compatible version |
-
-Output folders follow this naming pattern:
-
-``` text
-<MotusTagID>_<mfgID>_<state_label>_<download_id>_MotusFiltered
-```
-
-If `mfgID` is missing, the output filename uses:
-
-``` text
-unknownMFG
-```
-
-# Step 2: Estimate signal thresholds
+# Step 2 — Estimate activity thresholds
 
 ## Script
 
-``` text
+```text
 Step2_Activity_Threshold_Calculation.R
 ```
 
 ## Purpose
 
-Step 2 estimates activity thresholds from periods when birds are assumed
-to be mostly inactive. For Wood Thrushes, this inactive baseline is
-nighttime, specifically `night_1` and `night_2` based on the workflow’s
-timing classifications. Nighttime is split into two periods so
-detections remain in the correct chronological order across midnight,
-which helps keep nighttime detection sequences continuous for threshold
-estimation. This inactive baseline should be adjusted based on your
-species.
+Step 2 estimates the amount of signal variation expected during a biologically defined period of relative inactivity.
 
-The goal is to estimate the amount of signal variation expected when the
-bird is inactive. Signal changes larger than this expected baseline are
-treated as potential activity.
+For the Wood Thrush example, nighttime detections are used because breeding Wood Thrushes are primarily diurnal.
 
-## Main settings to edit
+Users applying the framework to another species should choose an appropriate calibration period.
 
-``` r
+## What Step 2 does
+
+Step 2:
+
+1. reads the Step 1 tag datasets
+2. loads deployment and receiver metadata
+3. assigns receiver hardware eras
+4. identifies the receiver with the strongest/most consistent detection record for threshold estimation
+5. groups detections representing the same transmission event
+6. assigns local diel timing
+7. calculates valid signal differences and proportional signal ratios
+8. identifies qualifying inactive-period sequences
+9. estimates tag-specific thresholds
+10. saves threshold summaries and diagnostic plots
+
+## Transmission events versus burst intervals
+
+A single transmitter burst may be detected by multiple antennas or receivers at slightly different timestamps.
+
+Before calculating signal change, detections that fall within the transmission-event tolerance are treated as one burst and the strongest signal is retained.
+
+For example:
+
+```text
+0.00 s
+0.18 s
+0.27 s
+```
+
+may represent three receiver records of one transmitted burst.
+
+After duplicates are collapsed, consecutive transmission events are evaluated against the programmed transmitter burst interval.
+
+For a tag with:
+
+```text
+Burst_Interval = 15.0 s
+tolerance      = 0.3 s
+```
+
+a valid consecutive pair must occur approximately:
+
+```text
+14.7–15.3 s
+```
+
+apart.
+
+These are separate concepts:
+
+```text
+≤ 0.3 s
+same transmitted burst
+        ↓
+retain strongest record
+
+approximately one programmed burst interval
+        ↓
+valid consecutive transmission pair
+```
+
+## Qualifying inactive sequences
+
+The default Wood Thrush implementation requires:
+
+```r
 min_consecutive_night_detections <- 15
-threshold_sd_multiplier <- 2
-
-root_dir <- here("Sample_Data", "Interim", "Motus_Tower_Data_Filtered")
-
-bird_metadata_path <- here("Sample_Data", "Raw", "Metadata", "WOTH_IL_Metadata.csv")
-tower_metadata_path <- here("Sample_Data", "Raw", "Metadata", "Tower_Metadata.csv")
 ```
 
-Receiver-specific timing tolerances and S2N cutoffs are defined in the
-Step 2 `parameter_lookup` table:
+consecutive valid nighttime detections before estimating an individual threshold for a tag × receiver era.
 
-``` r
-parameter_lookup <- tibble::tribble(
-  ~DongleType,  ~tolerance, ~S2N_cutoff,
-  "Funcube",             0.3,          6,
-  "RTL",                 0.3,         10,
-  "SigmaEight",          0.3,         12
-)
-```
+This helps avoid estimating thresholds from isolated or fragmented records.
 
-| Setting | Meaning |
-|----|----|
-| `duty_cycle` | Expected tag detection interval (burst interval) in seconds; depends on tag programming |
-| `min_consecutive_night_detections` | Minimum consecutive nighttime detections required to estimate the inactive baseline. A minimum of 15 detections was used because threshold estimates became much more stable once nighttime detection runs reached about this length for Wood Thrushes. This can be adjusted if necessary. |
-| `threshold_sd_multiplier` | Number of standard deviations (SDs) used to define inactivity threshold bounds around the inactive baseline distribution. Larger values produce wider thresholds and classify more signal variation as expected inactive behavior. |
-| `root_dir` | Folder containing individual Motus-filtered tag folders |
-| `bird_metadata_path` | Path to bird deployment metadata |
-| `tower_metadata_path` | Path to receiver metadata |
-| `tolerance` | Allowed timing differences around the expected duty cycle. Also used when grouping detections from the same expected tag burst and retaining the strongest signal |
-| `S2N_cutoff` | Minimum signal-to-noise ratio required for valid signal comparisons |
+Tags that do not meet this criterion do not contribute an individual threshold, but Step 3 can still classify their activity if a pooled threshold is available for their receiver type.
 
-## Code structure
+## Threshold calculation
 
-The main loop reads like:
+For valid consecutive transmission events:
 
-``` text
-load bird data
-attach receiver eras
-select strongest detections
-choose top receiver
-loop over receiver eras
-add diel timing
-calculate signal metrics
-extract nighttime baseline
-estimate thresholds
-save results
-make diagnostic plots
-```
-
-Important helper functions include:
-
-| Helper function | Purpose |
-|----|----|
-| `clean_dongle_type()` | Standardizes dongle type labels |
-| `build_receiver_eras()` | Creates receiver-era metadata from tower metadata |
-| `parse_individual_folders()` | Extracts identifiers from individual tag folders and retains the most recent download per tag dataset |
-| `load_bird_files()` | Loads available files for one `MotusTagID × mfgID` dataset |
-| `clean_and_select_strongest_detections()` | Groups detections likely representing the same expected tag burst and retains the strongest signal across possible receivers and antenna ports |
-| `get_tower_parameters()` | Retrieves receiver-specific timing tolerance and S2N cutoff |
-| `calculate_signal_metrics()` | Calculates S2N, signal difference, proportional signal ratio, and log ratio |
-| `has_enough_consecutive_night_detections()` | Checks whether the inactive nighttime baseline includes a long enough consecutive run |
-| `count_night_runs()` | Counts qualifying nighttime runs for diagnostic plot annotations |
-| `calculate_thresholds()` | Estimates proportional thresholds from inactive nighttime baseline detections |
-| `classify_threshold_activity()` | Applies preliminary threshold-based activity flags for diagnostics |
-| `make_threshold_summary_table()` | Converts the results list into a flat summary table |
-| `save_threshold_histograms()` | Creates individual and combined threshold diagnostic histograms |
-
-## What the script does
-
-### Load individual filtered tag folders
-
-The script identifies folders using the naming convention:
-
-``` text
-<MotusTagID>_<mfgID>_<state>_<downloadID>_MotusFiltered
-```
-
-It keeps the most recent download ID for each `MotusTagID × mfgID`
-dataset.
-
-### Load metadata and create receiver eras
-
-The script loads bird metadata and tower metadata. Bird metadata
-provides coordinates for diel timing classification. Tower metadata
-provides receiver system and dongle type.
-
-Receivers are split into eras if the hardware or system changed. This
-avoids estimating one threshold across multiple hardware configurations.
-
-### Select each bird’s top receiver
-
-For each bird, the script identifies the receiver with the greatest
-number of detections within a receiver era. Thresholds are estimated
-from the top receiver because it usually provides the most consistent
-and robust signal data.
-
-### Select strongest detection
-
-Within short time windows, the script keeps the strongest detection
-across receivers and antennas. This removes repeated detections from the
-same expected duty cycle/burst interval.
-
-### Add diel timing
-
-The `info_fast()` function assigns detections to biologically meaningful
-diel timing categories based on local sunrise, sunset, nautical dawn,
-and nautical dusk times calculated from the deployment latitude,
-longitude, date, and local time zone. These timing categories are:
-
-``` text
-dawn     = civil dawn → nautical dawn
-day      = nautical dawn → nautical dusk
-dusk     = nautical dusk → civil dusk
-night_1  =  civil dusk → midnight
-night_2  = midnight → civil dawn
-```
-
-Nighttime detections (`night_1` and `night_2`) are used as the inactive
-baseline because Wood Thrushes are primarily diurnal and generally
-exhibit lower movement rates during nighttime roosting periods. These
-can be adapted for species with different inactive periods.
-
-### Calculate signal metrics
-
-For valid consecutive detections, the script calculates:
-
-``` r
-S2N = sig - noise
-sig_diff = sig - lag(sig)
+```r
+sig_diff = current signal - previous signal
 sig_ratio = 10^(sig_diff / 10)
 ln_sig_ratio = log(sig_ratio)
 ```
 
-A signal difference is only considered valid when:
+Thresholds are then calculated from the inactive baseline:
 
-1.  The time between detections is within the tolerance of the duty
-    cycle
-2.  Both detections meet the receiver-specific S2N cutoff
-3.  The previous signal value is available
+```r
+median_ratio <- median(sig_ratio, na.rm = TRUE)
+sigma_ln <- sd(ln_sig_ratio, na.rm = TRUE)
 
-### Estimate nighttime baseline
+lower_ratio <-
+  median_ratio *
+  exp(-threshold_sd_multiplier * sigma_ln)
 
-The script subsets to valid nighttime detections:
-
-``` r
-night_baseline_data <- era_threshold_data %>%
-  filter(
-    !is.na(sig_ratio),
-    timing %in% c("night_1", "night_2")
-  )
+upper_ratio <-
+  median_ratio *
+  exp( threshold_sd_multiplier * sigma_ln)
 ```
 
-It then requires at least `min_consecutive_night_detections` consecutive
-nighttime detections occurring at approximately the duty-cycle interval
-within the tolerance. This requirement helps ensure that thresholds are
-estimated from sustained periods of stable nighttime detection coverage
-rather than isolated detections or fragmented detection sequences caused
-by missed bursts, intermittent receiver coverage, or birds moving in and
-out of reliable detection range.
+The default is:
 
-Birds that do not meet this requirement simply do not contribute to
-threshold estimation in Step 2. However, they can still be classified in
-Step 3 using receiver-type thresholds estimated from other birds with
-the same receiver hardware configuration.
-
-### Calculate proportional thresholds
-
-Thresholds are calculated as:
-
-``` r
-median_ratio <- median(night_baseline_data$sig_ratio, na.rm = TRUE)
-sigma_ln <- sd(night_baseline_data$ln_sig_ratio, na.rm = TRUE)
-
-lower_ratio <- median_ratio * exp(-threshold_sd_multiplier * sigma_ln)
-upper_ratio <- median_ratio * exp( threshold_sd_multiplier * sigma_ln)
+```r
+threshold_sd_multiplier <- 2
 ```
 
-This defines the expected range of inactive signal variation around a
-robust center. The median reduces the influence of extremely high or low
-threshold outliers, while the standard deviation of `ln_sig_ratio`
-captures the spread of natural proportional variation during presumed
-inactivity. The value of `threshold_sd_multiplier` controls how wide the
-threshold envelope is; here, `threshold_sd_multiplier = 2` creates an
-approximate 95% threshold envelope around the inactive baseline under a
-roughly normal distribution. Larger values produce wider thresholds and
-classify less signal variation as biological activity. The default value
-can be modified depending on the desired level of conservatism and the
-study system.
+Equivalent dB values are retained for plotting and interpretation.
 
-Equivalent dB thresholds are also saved:
+## Hierarchical threshold pooling
 
-``` r
-lower_db <- 10 * log10(lower_ratio)
-upper_db <- 10 * log10(upper_ratio)
-```
+Thresholds are pooled in two stages:
 
-<div class="callout">
+1. tag-specific threshold estimates are summarized within each receiver using the median
+2. receiver-level medians are averaged across receivers sharing the same hardware type
 
-<strong>In plain language:</strong>
-
-For each bird, the pipeline:
-
-1.  Identifies nighttime detections.
-2.  Calculates proportional signal changes between consecutive
-    detections.
-3.  Estimates the typical amount of nighttime signal variation.
-4.  Converts this variation into an inactivity threshold.
-5.  Combines thresholds across birds detected on the same receiver.
-6.  Averages receiver-level thresholds across receivers sharing the same
-    hardware configuration.
-7.  Uses these final receiver-type thresholds to classify activity for
-    all birds detected on that receiver type.
-
-</div>
-
-### Apply preliminary activity classification
-
-Step 2 applies a preliminary activity classification for diagnostics.
-
-This diagnostic classification uses the same core logic as Step 3,
-including proportional signal change, antenna switching, valid timing,
-S2N filtering, and dropout correction. In Step 2, this is used only to
-evaluate whether the estimated thresholds behave as expected during the
-inactive baseline period.
-
-Because thresholds are estimated from presumed inactive nighttime
-detections, most (i.e. ~95% of) nighttime detections should remain
-classified as inactive. If a large proportion of nighttime detections
-are classified as active, this may indicate that the threshold is too
-narrow, the receiver is noisy, the bird was moving at night, or the
-nighttime baseline was not representative.
-
-This is not the final deployment-level activity classification. Final
-activity estimates are produced in Step 3 after biological deployments,
-receiver groups, and output summaries are resolved.
-
-### Save summary table and full results
-
-The script writes a threshold summary table with one row per bird-era.
-
-Example output name:
-
-``` text
-all_birds_thresholds_summary<state_names>.csv
-```
-
-The updated script also saves the full `all_results` list as an `.rds`
-file for reproducibility.
+The resulting receiver-type thresholds are used in Step 3.
 
 ## Step 2 outputs
 
-| Output | Description |
-|----|----|
-| `summary_table` | One row per bird × receiver era containing threshold estimates and quality-control metrics |
-| `all_results` | `.rds` file containing the full processed results list for each bird × receiver era |
-| `threshold_hist_plots/` | Diagnostic histograms of signal differences with threshold lines, including both individual bird-era plots and combined plots grouped by receiver/tower type (thresholds grouped by tower type are what are ultimately used in activity classification) |
+Typical outputs include:
 
-# Step 3: Classify activity and summarize detections
-
-## Script options
-
-``` text
-Step3_Activity_Classification.R
-Step3_LOOP_Activity_Classification.R
+```text
+all_birds_thresholds_summary_<dataset>.csv
+all_birds_threshold_results_<dataset>.RDS
+threshold_hist_plots/
 ```
 
-## Purpose
+The threshold summary contains one row per qualifying tag × receiver era.
 
-Step 3 applies receiver-type thresholds to classify detections as active
-or inactive. It does this separately for each biological deployment so
-that tag redeployments are handled correctly.
+---
 
-This step produces the main output tables used for downstream activity
-analyses. It also includes an optional stationary-tag / dropped-tag /
-mortality screen.
+## Threshold diagnostic figure
 
-There are two versions of Step 3:
+![Example nighttime threshold distribution](Sample_Data/Example_Figures/Nighttime_Threshold_Histogram.png)
 
-| Version | Best used for | Main input |
-|----|----|----|
-| `Step3_Activity_Classification.R` | Testing or processing one tag dataset at a time | One `data_dir` |
-| `Step3_LOOP_Activity_Classification.R` | Processing all tag datasets after testing | One `data_parent_dir` |
+This figure shows the distribution of signal variation used to estimate the inactive baseline.
 
-## Main settings to edit
+Look for:
 
-``` r
-sample_size_threshold <- 0.25
-min_required_samples <- (3600 / duty_cycle) * sample_size_threshold
+- a distribution centered near little or no signal change
+- sufficient sample size
+- threshold bounds that contain most presumed inactive observations
+- absence of extreme skew or unusually broad noise tails
 
+A broad, sparse, or highly asymmetric distribution should be reviewed before relying on that threshold.
+
+---
+
+# Step 3 — Classify activity
+
+Two Step 3 scripts are provided:
+
+| Script | Use |
+|---|---|
+| `Step3_Activity_Classification.R` | Test or process one tag dataset |
+| `Step3_LOOP_Activity_Classification.R` | Process all available tag datasets |
+
+Both scripts call the same shared processing function in:
+
+```text
+Helper_Functions/Step3_Activity_Functions.R
+```
+
+This ensures that the single-dataset and batch workflows use the same activity-classification logic.
+
+## Recommended use
+
+Run the single-dataset version first.
+
+Inspect the resulting tables and diagnostic plots.
+
+Once the output looks appropriate, run the looped version for all tag datasets.
+
+---
+
+## Single-dataset settings
+
+Specify:
+
+```r
+target_MotusTagID <- "84746"
+target_mfgID <- "160"
+target_dataset_label <- "ExampleAllerton"
+```
+
+The script automatically selects the newest matching Step 1 folder.
+
+---
+
+## Multi-receiver sites
+
+Nearby receivers that form one biological monitoring site can be grouped in the USER SETTINGS.
+
+Example:
+
+```r
+multi_receiver_sites <- tibble::tribble(
+  ~site_id,   ~recvDeployName,
+  "Allerton", "Allerton",
+  "Allerton", "Allerton South"
+)
+```
+
+If no receivers should be grouped:
+
+```r
+multi_receiver_sites <- tibble::tibble(
+  site_id = character(),
+  recvDeployName = character()
+)
+```
+
+If the dominant receiver belongs to a defined site, detections from all receivers in that site are retained.
+
+If it does not belong to a defined site, only the dominant receiver is retained.
+
+Receiver switching within a retained site can still contribute evidence of movement.
+
+---
+
+## Activity classification
+
+A valid interval can be classified as active when one or more of the following occur:
+
+- proportional signal change falls outside the receiver-type inactivity bounds
+- the strongest antenna changes
+- the strongest receiver changes
+
+Classification additionally requires valid burst timing and adequate signal quality.
+
+The shared `classify_activity()` function also applies isolated telemetry-dropout correction.
+
+---
+
+## Telemetry dropout correction
+
+A brief apparent antenna or receiver switch can occasionally occur even when the transmitter has not moved.
+
+The framework identifies isolated switches when:
+
+1. one detection briefly switches antenna or receiver
+2. the detections immediately before and after return to the original antenna or receiver
+3. surrounding proportional signal changes remain within inactivity thresholds
+
+When all criteria are met, the isolated switch is treated as a telemetry artifact rather than biological movement.
+
+![Conceptual telemetry dropout correction](Sample_Data/Example_Figures/Example_Dropout_Correction.png)
+
+The conceptual figure illustrates how an isolated switch can occur while surrounding signal changes remain consistent with inactivity.
+
+![Observed dropout diagnostic](Sample_Data/Example_Figures/Example_Dropout_Plot.png)
+
+The observed dropout plot shows where isolated telemetry dropouts were detected within an example deployment.
+
+---
+
+# Optional stationary-tag screen
+
+Step 3 includes an optional diagnostic screen for extended inactivity near the end of a deployment.
+
+Enable it with:
+
+```r
 run_stationary_tag_screen <- TRUE
+```
 
+The diel period is user-selectable:
+
+```r
+stationary_screen_timing <- "day"
+```
+
+Available options are:
+
+```text
+"day"
+"night"
+"all"
+```
+
+Choose a period during which the focal species would normally be expected to show activity.
+
+For a primarily diurnal species such as the Wood Thrush example, `"day"` avoids flagging normal nighttime roosting as suspicious inactivity.
+
+Default settings are:
+
+```r
 stationary_late_window_hours <- 72
 stationary_receiver_selection_hours <- 24
-stationary_min_valid_late <- 15
+stationary_min_valid_late <- 30
 stationary_min_prop_within <- 0.80
 stationary_max_mean_abs_sigdif <- 2.5
 stationary_min_receiver_prop <- 0.50
 ```
 
-For the single-tag version, replace the folder name with the folder name
-of the bird you want to run:
+A deployment is flagged only when all criteria are met.
 
-``` r
-data_parent_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
-)
+The screen is a **diagnostic flag only**. It does not modify activity classifications and should not be interpreted as confirmed mortality or tag loss.
 
-target_MotusTagID <- "84746"
-target_mfgID <- "160"
-target_state <- "ExampleAllerton"
-```
+![Stationary-tag diagnostic](Sample_Data/Example_Figures/Stationary_Tag_Screen.png)
 
-The single-tag Step 3 script searches `data_parent_dir` for folders
-matching the requested `target_MotusTagID`, `target_mfgID`, and
-`target_state`, then automatically selects the most recent
-`download_id`.
+This plot shows signal differences during the selected final screening window. A deployment with many valid comparisons inside inactivity bounds, low average signal variation, and strong concentration on one receiver may warrant manual review.
 
-For the looped version:
-
-``` r
-data_parent_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
-)
-```
-
-Shared metadata and threshold paths:
-
-``` r
-bird_metadata_path <- here(
-  "Sample_Data", "Raw", "Metadata", "WOTH_IL_Metadata.csv"
-)
-
-tower_metadata_path <- here(
-  "Sample_Data", "Raw", "Metadata", "Tower_Metadata.csv"
-)
-
-threshold_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
-)
-
-threshold_file_pattern <- "all_birds_thresholds_summary.*\\.csv$"
-```
-
-| Setting | Meaning |
-|----|----|
-| `duty_cycle` | Expected tag detection interval, or burst interval, in seconds |
-| `sample_size_threshold` | Minimum fraction of expected detections required per hour |
-| `min_required_samples` | Minimum detections per hour retained in summaries |
-| `run_stationary_tag_screen` | Whether to run the possible stationary-tag diagnostic screen |
-| `data_dir` | Folder for one tag dataset in the single-tag Step 3 script |
-| `data_parent_dir` | Parent folder containing all tag dataset folders in the looped Step 3 script |
-| `threshold_file_pattern` | Pattern used to find Step 2 threshold summary tables |
-
-With a 15-second duty cycle, there are 240 expected detections per hour.
-A `sample_size_threshold` of 0.25 requires at least 60 detections per
-hour. This was an arbitrary cutoff to balance sample size and data
-quality.
-
-The stationary-tag screen uses several conservative settings to identify
-deployments that become unusually stable near the end of the detection
-record. In general, the screen looks for tags that stop showing much
-signal variation and become repeatedly detected by the same receiver.
-
-| Setting | Meaning |
-|----|----|
-| `stationary_late_window_hours` | Number of final daytime hours checked for unusually stable signal behavior |
-| `stationary_receiver_selection_hours` | Number of final daytime hours used to identify the main receiver where the tag was most consistently detected |
-| `stationary_min_valid_late` | Minimum number of valid signal comparisons required before the screen can evaluate the deployment |
-| `stationary_min_prop_within` | Minimum proportion of final-window signal differences that must stay within the inactive threshold range |
-| `stationary_max_mean_abs_sigdif` | Maximum average signal variation allowed during the final daytime window |
-| `stationary_min_receiver_prop` | Minimum proportion of final-window detections that must occur on the main receiver |
-
-These settings were chosen to balance conservative stationary-tag
-screening with the ability to detect biologically meaningful stationary
-patterns. For example:
-
-- requiring most final-window signal differences to remain within
-  inactive thresholds (`0.80`) helps reduce false flags from birds still
-  moving normally while still allowing some natural signal variability
-- requiring detections to remain mostly concentrated on one receiver
-  (`0.50`) helps distinguish potentially stationary tags from birds
-  regularly moving among towers
-- requiring relatively low average signal variation (`2.50 dB`) helps
-  identify unusually stable signal patterns without requiring
-  near-perfect signal stability
-- requiring at least `15` valid signal comparisons helps reduce unstable
-  results caused by sparse detections or limited late-window coverage
-
-These values can be adjusted depending on the study system, species
-behavior, receiver density, or desired level of screening strictness.
-More restrictive settings may reduce false positives but miss subtle
-stationary-tag patterns, whereas more relaxed settings may flag true
-activity.
-
-For tag deployments monitored primarily by a single receiver or by
-sparse receiver arrays where birds are unlikely to be picked up by
-multiple towers at a time, the receiver-concentration requirement
-(stationary_min_receiver_prop) will often be more informative at higher
-values (i.e. `90`) than those used here. In these systems, truly
-stationary tags are more likely to remain consistently associated with
-one receiver rather than systems with multiple receivers.
-
-## Code structure
-
-The main Step 3 workflow now follows this structure:
-
-``` text
-parse dataset folder
-load detection file
-load metadata and thresholds
-build receiver-era table
-aggregate thresholds by tower type
-resolve biological deployments
-loop over deployments
-filter to deployment window
-retain site receivers
-clean and select strongest antenna
-attach diel timing and thresholds
-screen for possible stationary tag
-classify activity
-summarize activity
-save tables and plots
-```
-
-Important helper functions include:
-
-| Helper function | Purpose |
-|----|----|
-| `parse_dataset_folder()` | Extracts `MotusTagID`, `mfgID`, state, and date code from the folder name |
-| `find_latest_dataset_folder()` | Finds the newest matching Step 1 output folder for a target `MotusTagID × mfgID × state` combination |
-| `find_dataset_folders()` | Used in the looped version to find all Step 1 output folders |
-| `clean_dongle_family()` | Standardizes dongle labels |
-| `clean_system_family()` | Standardizes receiver system labels |
-| `build_tower_eras()` | Creates receiver-era metadata from tower metadata |
-| `load_threshold_table()` | Loads Step 2 threshold summary tables |
-| `build_tower_type_thresholds()` | Aggregates bird-era thresholds into receiver-type thresholds |
-| `get_receiver_thresholds()` | Matches detections to receiver-era thresholds by receiver and date |
-| `get_bird_deployments()` | Resolves true biological deployments from bird metadata |
-| `get_deployment_end()` | Defines deployment end dates while preventing redeployment overlap |
-| `filter_to_deployment_window()` | Keeps detections that fall within the biological deployment window |
-| `define_multi_receiver_sites()` | Defines receiver groups that should be treated as one site |
-| `filter_to_site_receivers()` | Retains the top receiver or grouped multi-receiver site |
-| `clean_and_select_strongest_detections()` | Aligns detections to the duty cycle and keeps strongest detections |
-| `check_missing_thresholds()` | Identifies missing receiver metadata or threshold assignments before classification |
-| `attach_receiver_parameters()` | Adds thresholds, tower type, tolerance, and S2N cutoff |
-| `summarize_deployment_thresholds()` | Creates deployment-level median thresholds for plotting |
-| `screen_stationary_tag_deployment()` | Screens for possible stationary-tag / dropped-tag / mortality patterns |
-| `save_stationary_tag_screen()` | Saves stationary-tag screening outputs |
-| `classify_detection_activity()` | Converts detections to wide format and runs `classify_activity()` |
-| `summarize_hourly_activity()` | Summarizes activity by date, hour, and diel period |
-| `summarize_hourly_across_days()` | Aggregates hourly activity across retained days |
-| `save_activity_tables()` | Saves deployment-specific output tables |
-| `make_and_save_plots()` | Creates and saves the full diagnostic plotting suite |
-
-## What the script does
-
-### Load one or more MotusTagID × mfgID datasets
-
-The single-tag Step 3 workflow automatically searches for the most
-recent matching Step 1 output folder using the folder date code. This
-allows users to rerun Step 1 with updated Motus downloads without
-manually changing the Step 3 folder path each time.
-
-The single-tag Step 3 script processes one tag folder at a time using
-`data_dir`.
-
-The looped Step 3 script searches `data_parent_dir` for all folders
-matching:
-
-``` text
-<MotusTagID>_<mfgID>_<state>_<date_code>_MotusFiltered
-```
-
-Each folder name is parsed to identify `MotusTagID`, `mfgID`, state, and
-date code.
-
-### Load metadata and thresholds
-
-The script loads bird deployment metadata, tower hardware metadata, and
-threshold summary tables from Step 2.
-
-### Aggregate thresholds by receiver type
-
-The script uses Step 2 threshold tables to calculate standardized
-thresholds:
-
-1.  Calculate the **median threshold across individuals within each
-    receiver** to reduce the influence of unusually high or low
-    individual threshold estimates.
-
-2.  Calculate the **mean of these receiver-level medians across
-    receivers sharing the same hardware configuration** to obtain a
-    representative threshold for each receiver type.
-
-The median of individual bird thresholds is first calculated within each
-receiver to reduce the influence of unusually high or low thresholds
-associated with particular individuals or receiver eras. After these
-receiver-level medians are obtained, the mean across receivers sharing
-the same hardware configuration is used to generate a representative
-threshold for each receiver type. In other words, the median step
-reduces within-receiver outlier influence, while the mean step
-standardizes thresholds across receivers of the same type.
-
-Pooling thresholds across towers with similar hardware configurations
-helps place activity estimates on a more standardized and biologically
-comparable scale, reducing the influence of tower-specific noise
-characteristics, receiver sensitivity, and local signal environments.
-The goal is to ensure that similar levels of biological movement are
-classified consistently across receivers, so differences in estimated
-activity reflect true behavioral differences rather than differences in
-receiver hardware or signal environments.
-
-These final thresholds are applied by receiver type, not by individual
-bird. This could be applied across species if duty cycles are the same.
-
-<div class="good">
-
-<strong>Important:</strong> A bird does not need to produce its own
-nighttime threshold estimate in Step 2 in order for activity to be
-classified in Step 3. Once receiver-type thresholds have been estimated
-for a given hardware configuration, those thresholds can be applied to
-other birds detected on the same receiver type, provided the detections
-meet the normal timing, signal-quality, and deployment-window
-requirements. <br><br> This allows activity to be estimated for birds
-with limited nighttime detections, shorter detection periods, or sparse
-local data, as long as appropriate receiver-type thresholds are
-available.
-
-</div>
-
-### Resolve biological deployments
-
-The script filters bird metadata to the current `MotusTagID × mfgID` and
-collapses rows into true deployments based on:
-
-``` text
-Band + Date_tagged
-```
-
-Each deployment is processed separately.
-
-### Filter detections to deployment window
-
-For each deployment, detections are filtered to the deployment window
-beginning at the tagging date and tagging time
-(`Date_tagged + Time_tagged`) and ending at `Date_end`.
-
-Using `Time_tagged` helps prevent detections recorded before release or
-during handling immediately after tagging from being included in
-activity estimation. This is especially important for studies where tags
-may begin transmitting before the bird is fully released or behaving
-normally.
-
-If `Time_tagged` is unavailable, the workflow falls back to using the
-tagging date alone.
-
-### Infer multi-receiver site membership
-
-Some sites have multiple receivers that function as part of one
-site-level array.
-
-Current grouped examples:
-
-| Site | Receivers |
-|----|----|
-| Allerton | `Allerton`, `Allerton South` |
-| Kennekuk | `Kennekuk 1`, `Kennekuk 2`, `Kennekuk 3`, `Kennekuk 4`, `Kennekuk 5`, `Kennekuk 6`, `Kickapoo` |
-
-If the top receiver belongs to one of these predefined multi-receiver
-site groups, the script retains detections from all receivers within
-that site for activity estimation. This helps prevent biologically local
-movements among nearby receivers from being interpreted as unrelated
-receiver changes.
-
-If the top receiver is not part of a defined multi-receiver site, only
-the single top receiver is retained for downstream activity estimation
-and classification. This helps reduce the influence of distant, noisy,
-or biologically unrelated receivers.
-
-### Clean and select the strongest detection
-
-The script aligns detections to the expected duty cycle and keeps the
-strongest signal:
-
-1.  Within each duty-cycle time and receiver
-2.  Across receivers for that duty-cycle time
-
-This produces one strongest detection per expected tag detection
-interval.
-
-### Add diel timing
-
-The `info_fast()` function assigns each detection to diel periods based
-on location and date.
-
-### Attach receiver thresholds
-
-The script joins each detection to the appropriate tower type and
-threshold values based on receiver name and date. If any receiver is
-missing tower metadata or thresholds, the script stops rather than
-producing incomplete activity classifications.
-
-### Screen for possible stationary tag, dropped tag, or mortality pattern
-
-The updated Step 3 scripts include an optional stationary-tag screen.
-
-This screen evaluates the final daytime portion of a deployment. It asks
-whether detections became highly concentrated on one receiver and showed
-very little valid signal change near the end of the record.
-
-The screen uses the following settings:
-
-| Setting | Meaning |
-|----|----|
-| `stationary_late_window_hours` | Number of final daytime hours evaluated for unusually stationary signal |
-| `stationary_receiver_selection_hours` | Number of final daytime hours used to identify the focal receiver |
-| `stationary_min_valid_late` | Minimum valid late-window signal comparisons required |
-| `stationary_min_prop_within` | Minimum proportion of late-window signal differences within inactive bounds |
-| `stationary_max_mean_abs_sigdif` | Maximum mean absolute dB signal difference allowed in the final window |
-| `stationary_min_receiver_prop` | Minimum proportion of final-window detections on the focal receiver |
-
-A deployment is flagged only if:
-
-1.  There are enough valid late-window signal comparisons
-2.  Most final-window signal differences are within inactive threshold
-    bounds
-3.  Mean absolute signal difference is very low
-4.  Detections are concentrated on one focal receiver
-
-<div class="warning">
-
-<strong>Important:</strong> The stationary-tag screen is a diagnostic
-flag only. It does not change the activity classification and should not
-be interpreted as confirmed mortality or confirmed tag loss without
-manual review.
-
-</div>
-
-### Reshape to wide format
-
-Detections are reshaped so signal and noise values from different
-antenna ports are represented in separate columns. This allows the
-activity classifier to identify the strongest antenna port and detect
-port switching.
-
-<div class="callout">
-
-<strong>In plain language:</strong>
-
-A detection is classified as active if **any** of the following occur:
-
-- proportional signal change exceeds the inactivity thresholds,
-- the strongest antenna port changes,
-- the receiver changes,
-
-provided that the detections satisfy the expected duty-cycle timing and
-receiver-specific signal-quality requirements.
-
-</div>
-
-### Classify activity
-
-The `classify_activity()` function flags activity based on:
-
-1.  Proportional signal change outside receiver-type threshold bounds
-2.  Antenna port switching
-3.  Receiver switching
-4.  Valid duty-cycle timing
-5.  Receiver-specific S2N cutoffs
-6.  Dropout correction
-
-#### Function used here: `classify_activity()`
-
-`classify_activity()` is the core function that classifies biologically
-meaningful activity from cleaned Motus detections.
-
-``` r
-classify_activity(
-  df,
-  duty_cycle,
-  lower_ratio,
-  upper_ratio
-)
-```
-
-The function expects a wide-format detection table where signal and
-noise values from different antenna ports are stored in separate
-columns, such as:
-
-``` text
-sig_1, sig_2, sig_3, sig_4
-noise_1, noise_2, noise_3, noise_4
-```
-
-Poor signal quality means the signal is weak relative to background
-noise, usually because `S2N` is below the receiver-specific cutoff.
-These detections are not reliable for estimating movement because small
-noise fluctuations can look like biological signal changes.
-
-#### Dropout correction
-
-Occasional single-detection errors can occur when a receiver briefly
-appears to switch antenna ports or receivers even though the bird likely
-remained stationary. These brief shifts may arise from
-receiver-processing limitations, temporary signal-registration issues,
-or issues with power.
-
-Without correction, these isolated port or receiver switches could be
-incorrectly interpreted as activity.
-
-To reduce these false positives, the pipeline applies a conservative
-dropout correction after initial classification. A dropout is defined as
-a single detection that temporarily differs from the immediately
-preceding and following detections in antenna or receiver assignment
-while the surrounding signal differences remain within inactive
-threshold bounds. In these cases, the brief switch is treated as likely
-false activity, and the affected detections are reclassified as
-inactive.
-
-<img src="Sample_Data/Example_Figures/Example_Dropout_Correction.png" width="90%" style="display: block; margin: auto;" />
-
-**Figure:** Example dropout correction pattern. A brief apparent antenna
-switch occurs while surrounding detections remain within inactive
-thresholds, suggesting a likely receiver-processing artifact rather than
-true activity.
-
-### Summarize hourly activity
-
-The script summarizes activity by date, hour, and timing category. Hours
-are retained only if they meet the minimum sampling threshold.
-
-### Aggregate hourly activity across days
-
-The script also creates an across-day hourly summary with approximate
-95% confidence intervals.
-
-### Save tables and plots
-
-Outputs are saved in a deployment-specific folder.
+---
 
 # Step 3 outputs
 
-For each deployment, Step 3 creates an output folder like:
+Each biological deployment receives its own output folder:
 
-``` text
-Sample_Data/Processed/<MotusTagID>_<mfgID>_Band<Band>_MotusFiltered_classified/
+```text
+<MotusTagID>_<mfgID>_Band<Band>_<dataset_label>_classified
 ```
 
-## Output tables
+For example:
 
-| File suffix | Description |
-|----|----|
-| `_ActivityWide.csv` | Detection-level classified activity table |
-| `_ActivityPerHourPerDay.csv` | Hourly activity by date, hour, and timing category |
-| `_ActivityPerHourSummary.csv` | Hourly activity averaged across days |
-| `_StationaryTagScreen.csv` | One-row stationary-tag screening summary, if the screen ran |
-| `_StationaryTagScreen_LateData.csv` | Late-window data used by the stationary-tag screen, if the screen ran |
+```text
+84746_160_Band323154824_ExampleAllerton_classified
+```
 
-## Important output columns
+Typical contents are:
 
-### Detection-level activity table
+```text
+84746_160_Band323154824_ExampleAllerton_classified/
+│
+├── *_ActivityWide.csv
+├── *_ActivityPerHourPerDay.csv
+├── *_ActivityPerHourSummary.csv
+├── *_StationaryTagScreen.csv
+├── *_StationaryTagScreen_LateData.csv
+└── plots/
+```
 
-| Column | Description |
-|----|----|
-| `date_time_local` | Local datetime of detection |
-| `timing` | Diel period assigned by `info_fast()` |
-| `recvDeployName` | Receiver name |
-| `top_port` | Strongest antenna port for the detection |
-| `sig_diff` | Signal difference between valid consecutive detections |
+Stationary-tag files are only created when the screen can be evaluated.
+
+---
+
+## Detection-level activity table
+
+`*_ActivityWide.csv` contains the detection-level activity classification.
+
+Important fields include:
+
+| Column | Meaning |
+|---|---|
+| `date_time_local` | Detection time in local time |
+| `timing` | Diel period |
+| `recvDeployName` | Receiver |
+| `top_port` | Strongest antenna port |
+| `sig_diff` | Valid signal-strength difference |
 | `sig_ratio` | Proportional signal change |
-| `within_threshold` | Whether signal ratio stayed inside inactive threshold bounds |
+| `within_threshold` | Whether the change remained within inactivity bounds |
 | `active` | Final activity classification |
-| `lower_ratio`, `upper_ratio` | Ratio thresholds used for classification |
-| `lower_db`, `upper_db` | Equivalent dB thresholds used for plotting/reference |
-| `tolerance` | Receiver timing tolerance |
-| `S2N_cutoff` | Receiver-specific S2N cutoff |
+| `activity_denominator` | Whether the row contributes to activity summaries |
+| `lower_ratio`, `upper_ratio` | Proportional inactivity thresholds |
+| `lower_db`, `upper_db` | Equivalent dB thresholds |
+| `tolerance` | Burst-interval timing tolerance |
+| `S2N_cutoff` | Receiver-specific signal-quality cutoff |
 
-### Hourly per-day table
-
-| Column             | Description                                  |
-|--------------------|----------------------------------------------|
-| `date`             | Local date                                   |
-| `hour`             | Hour of day                                  |
-| `timing`           | Diel category                                |
-| `sample_size`      | Number of retained detections in that hour   |
-| `n_active`         | Number of active detections in that hour     |
-| `percent_activity` | `n_active / sample_size`                     |
-| `MotusTagID`       | Tag ID                                       |
-| `mfgID`            | Manufacturer ID                              |
-| `Band`             | Biological deployment ID                     |
-| `state`            | State/location label parsed from folder name |
+---
 
-### Hourly summary table
+## Hourly activity table
 
-| Column                 | Description                                        |
-|------------------------|----------------------------------------------------|
-| `hour`                 | Hour of day                                        |
-| `timing`               | Diel category                                      |
-| `sample_size`          | Total sample size across days                      |
-| `n_active`             | Total active detections across days                |
-| `percent_activity`     | Activity proportion across all retained detections |
-| `se`                   | Standard error                                     |
-| `ci_lower`, `ci_upper` | Approximate 95% confidence interval                |
+`*_ActivityPerHourPerDay.csv` summarizes activity for each local date × hour × diel period.
 
-### Stationary-tag screening table
+The default hourly coverage threshold is:
 
-| Column | Description |
-|----|----|
-| `focal_receiver` | Receiver dominating the final daytime detections |
-| `focal_receiver_prop` | Proportion of final receiver-selection-window detections on the focal receiver |
-| `tower_type` | Receiver hardware category used for thresholds |
-| `lower_db`, `upper_db` | Inactive dB threshold bounds used for screening |
-| `S2N_cutoff` | Signal-to-noise cutoff used for valid comparisons |
-| `late_window_hours` | Final daytime window evaluated |
-| `receiver_selection_hours` | Window used to identify the focal receiver |
-| `n_valid_late` | Number of valid final-window signal comparisons |
-| `prop_within_late` | Proportion of final-window signal differences within inactive bounds |
-| `mean_abs_sigdif` | Mean absolute final-window signal difference |
-| `max_abs_sigdif` | Maximum absolute final-window signal difference |
-| `flagged_possible_stationary_tag` | Whether the deployment met all screening criteria |
+```r
+sample_size_threshold <- 0.25
+```
 
-# Plot interpretation guide
+For a 15-second transmitter:
 
-The Step 3 plotting suite generates several diagnostic plots intended to
-help evaluate receiver performance, detection quality, threshold
-behavior, and biological activity patterns. These plots should be
-reviewed before interpreting activity estimates biologically.
+```text
+3600 / 15 = 240 expected intervals per hour
 
-------------------------------------------------------------------------
+240 × 0.25 = 60 required valid intervals
+```
 
-### `hourly_activity`
+Hours with fewer than the required number of valid intervals are excluded.
 
-This is typically the primary biological output of the pipeline.
-Activity is summarized as the proportion of retained detections
-classified as active within each hour of the day.
+---
 
-Approximate 95% confidence intervals are shown to visualize sampling
-uncertainty.
+## Hourly summary table
 
-**What to look for:**
+`*_ActivityPerHourSummary.csv` aggregates retained activity across days by hour and timing period.
 
-- Plausible diel structure
-- Low nighttime activity for diurnal species
-- Consistent daytime peaks
-- Abrupt behavioral shifts across deployments or seasons
+---
 
-<img src="Sample_Data/Example_Figures/Example_Averaged_Hourly_Activity.png" width="85%" style="display: block; margin: auto;" />
+# Step 3 processing log
 
-**Figure:** Example averaged hourly activity plot generated by the Step
-3 workflow.
+The looped Step 3 creates:
 
-------------------------------------------------------------------------
+```text
+Step3_processing_log.csv
+```
 
-### `daily_detected_vs_expected`
+This is a **batch-processing quality-control record**, not a biological analysis output.
 
-This plot compares observed detections to the number expected if the tag
-were continuously detected at the programmed duty cycle.
+It records whether each tag dataset:
 
-Observed detections substantially below expected values may reflect:
+- completed successfully
+- contained deployments that were skipped
+- encountered a fatal processing error
 
-- Distance from the receiver
-- Vegetation or terrain obstruction
-- Antenna orientation
-- Weak signal quality
-- Receiver downtime
-- Emigration from the receiver array
+The loop continues to later tag datasets if one dataset fails.
 
-<div class="warning">
+Review the processing log after every full batch run.
 
-<strong>Important:</strong> Low detections do not necessarily mean the
-bird was absent.
+---
 
-</div>
+# Diagnostic figures
 
-<img src="Sample_Data/Example_Figures/Daily_Detected_vs_Expected.png" width="85%" style="display: block; margin: auto;" />
+Diagnostic figures should be reviewed before activity estimates are used in biological analyses.
 
-**Figure:** Example comparison between observed detections and
-detections expected from the programmed duty cycle.
+## Hourly activity
 
-------------------------------------------------------------------------
+![Example averaged hourly activity](Sample_Data/Example_Figures/Example_Averaged_Hourly_Activity.png)
 
-### `fraction_expected_tod`
+This plot shows the proportion of valid intervals classified as active within each hour.
 
-This plot summarizes detection effort relative to the amount of time
-available within each diel period.
+For the Wood Thrush example, plausible output generally includes relatively low nighttime activity and greater daytime activity.
 
-This prevents longer summer daytime periods from appearing to have
-artificially greater detection effort simply because they contain more
-total time.
+Patterns should always be interpreted in the context of species biology.
 
-**Useful for identifying:**
+---
 
-- Systematic underdetection at night
-- Interference during certain periods
-- Uneven receiver coverage across the diel cycle
+## Detected versus expected transmissions
 
-<img src="Sample_Data/Example_Figures/Daily_Detected_vs_Expected_TimeOfDay.png" width="85%" style="display: block; margin: auto;" />
+![Detected versus expected transmissions](Sample_Data/Example_Figures/Daily_Detected_vs_Expected.png)
 
-**Figure:** Example detection effort by diel period after accounting for
-the amount of time available within each period.
+This diagnostic compares observed detections with the number expected from the programmed burst interval.
 
-------------------------------------------------------------------------
+Low detection coverage can result from:
 
-### `duty_cycle`
+- distance from the receiver
+- vegetation or terrain obstruction
+- antenna orientation
+- weak signal quality
+- receiver downtime
+- movement outside receiver coverage
 
-The duty-cycle plot is an important quality-control diagnostic showing
-the distribution of time intervals between detections.
+Low detections do not necessarily indicate absence.
 
-If detections cluster strongly around the expected burst interval, the
-receiver is consistently detecting the tag.
+---
 
-Broad or irregular interval distributions may indicate:
+## Detection coverage by diel period
 
-- Missed detections
-- Weak signals
-- Noisy receiver environments
-- Intermittent receiver performance
+![Detection coverage by diel period](Sample_Data/Example_Figures/Daily_Detected_vs_Expected_TimeOfDay.png)
 
-<img src="Sample_Data/Example_Figures/Duty_cycle.png" width="85%" style="display: block; margin: auto;" />
+This plot expresses detection coverage relative to the amount of time available in each diel period.
 
-**Figure:** Example duty-cycle distribution showing detections
-clustering near the expected burst interval.
+It can help identify systematic differences in receiver coverage among day, dawn, dusk, and night.
 
-------------------------------------------------------------------------
+---
 
-### `signal_difference`
+## Burst-interval diagnostic
 
-This plot visualizes the distribution of valid signal differences
-(`sig_diff`) used for movement classification.
+![Burst-interval diagnostic](Sample_Data/Example_Figures/Duty_cycle.png)
 
-Dashed vertical lines represent the lower and upper activity thresholds.
+This plot shows elapsed time between detections.
 
-Because thresholds are estimated from proportional signal change but
-visualized in dB units, this plot is intended primarily for diagnostic
-interpretation rather than direct threshold estimation.
+A strong concentration near the programmed burst interval indicates consistent tag detection.
 
-**What to look for:**
+Broad or irregular distributions can indicate:
 
-- Most nighttime detections remaining within thresholds
-- Distributions centered near zero signal change
-- Minimal extreme skew or broad noise tails
+- missed transmissions
+- weak signal
+- receiver noise
+- intermittent receiver coverage
 
-Extremely broad distributions or strong skew may indicate noisy
-receivers, weak signal quality, or poor threshold fit.
+---
 
-<img src="Sample_Data/Example_Figures/Signal_Difference.png" width="85%" style="display: block; margin: auto;" />
+## Signal-difference diagnostic
 
-**Figure:** Example signal-difference distribution with lower and upper
-activity thresholds overlaid.
+![Signal-difference diagnostic](Sample_Data/Example_Figures/Signal_Difference.png)
 
-------------------------------------------------------------------------
+This plot shows valid signal differences and corresponding inactivity bounds.
 
-### `dropouts` / corrected single-detection switches
+Very broad or strongly asymmetric distributions may indicate receiver noise, weak signal quality, or a threshold that deserves closer inspection.
 
-Dropout plots identify isolated apparent antenna or receiver switches
-corrected by the dropout algorithm.
+---
 
-These events likely reflect temporary receiver-processing
-inconsistencies or brief changes in antenna assignment rather than true
-biological movement.
+## Dropout diagnostic
 
-Occasional dropouts are expected. However, consistently elevated dropout
-rates may indicate:
+![Dropout diagnostic](Sample_Data/Example_Figures/Example_Dropout_Plot.png)
 
-- Receiver instability
-- Dongle-processing issues
-- Weak signal environments
-- Excessive electromagnetic noise
-- Inconsistent or insufficient power supply
+This figure shows isolated antenna or receiver switches identified by the dropout correction.
 
-<div class="warning">
+Occasional events are expected. Consistently high dropout rates may warrant inspection of:
 
-<strong>Important:</strong> If a receiver shows consistently high
-dropout rates across deployments, investigate whether the receiver
-system is receiving stable and adequate power. Low-voltage conditions,
-unstable solar charging, battery issues, or intermittent power
-interruptions can increase receiver-processing inconsistencies and
-apparent antenna switching.
+- receiver hardware
+- signal quality
+- electromagnetic noise
+- power supply stability
+- antenna configuration
 
-</div>
+---
 
-<img src="Sample_Data/Example_Figures/Example_Dropout_Plot.png" width="85%" style="display: block; margin: auto;" />
+## Daily daytime activity
 
-**Figure:** Example dropout plot showing how frequently dropouts are
-being detected within a single bird’s detection period (look for the
-proportion of blue within the gray bars in early June).
+![Daily daytime activity](Sample_Data/Example_Figures/Daily_Daytime_Activity.png)
 
-------------------------------------------------------------------------
-
-### `daily_daytime_activity`
-
-This plot summarizes average daytime activity through time.
+This plot summarizes daytime activity through time.
 
 It can help identify:
 
-- Seasonal behavioral changes
-- Abrupt activity collapses
-- Possible mortality events
-- Stationary tags
-- Long-term movement trends
+- gradual behavioral changes
+- abrupt activity declines
+- extended stationary periods
+- changes in receiver coverage
 
-Abrupt declines in activity combined with stable detections may suggest
-stationary tags, whereas simultaneous declines in detections may instead
-reflect emigration or reduced receiver coverage.
+A decline in activity should be interpreted alongside detection effort and stationary-tag diagnostics.
 
-<img src="Sample_Data/Example_Figures/Daily_Daytime_Activity.png" width="85%" style="display: block; margin: auto;" />
+---
 
-**Figure:** Example daytime activity pattern through time for one
-deployment.
+## Stationary-tag screen
 
-------------------------------------------------------------------------
+![Stationary-tag screen](Sample_Data/Example_Figures/Stationary_Tag_Screen.png)
 
-### `stationary_tag_screen`
+This plot shows the final selected screening window used by the stationary-tag diagnostic.
 
-This plot shows the final daytime signal differences used by the
-stationary-tag screen.
+A high proportion of valid signal changes inside inactivity bounds, combined with low mean signal variation and concentration on one receiver, may indicate an unusually stationary tag.
 
-The shaded region represents the expected inactive threshold range.
-Points mostly inside this region, especially when detections are
-concentrated on one receiver, may suggest a possible dropped tag,
-mortality event, stationary transmitter, or prolonged inactivity.
+This plot should always be reviewed manually rather than treated as a mortality classifier.
 
-<div class="warning">
+---
 
-<strong>Important:</strong> This plot is intended only as a
-manual-review diagnostic tool. A stationary-tag flag is not confirmation
-of mortality or tag loss.
+# Diel timing
 
-</div>
+Detections are assigned to diel periods from deployment coordinates and local solar times.
 
-<div class="callout">
+The current categories are:
 
-<strong>Best practice:</strong> Always inspect these diagnostic plots
-before interpreting biological activity patterns or comparing activity
-among individuals, seasons, or receiver arrays.
-
-</div>
-
-<img src="Sample_Data/Example_Figures/Stationary_Tag_Screen.png" width="85%" style="display: block; margin: auto;" />
-
-**Figure:** Stationary tag screening plot, showing within the last 72
-hours how frequently the bird’s signal changes exceeded the inactive
-threshold.
-
-# Quality control checklist
-
-Before interpreting activity results, check the following:
-
-## Metadata checks
-
-- [ ] Every `motusTagID + mfgID` in the detection data appears in bird
-  metadata.
-- [ ] Every deployment has a `Band`.
-- [ ] `Date_tagged` and `Date_end` are correct.
-- [ ] Latitude and longitude are correct for the deployment site.
-- [ ] Every `recvDeployName` appears in tower metadata.
-- [ ] Receiver hardware changes are represented in `System1End`,
-  `System2`, and `DongleType_2`.
-
-## Threshold checks
-
-- [ ] Thresholds are based on enough nighttime detections.
-- [ ] Each bird-era has at least one nighttime run of at least 15
-  consecutive detections.
-- [ ] Histograms look centered and not dominated by sparse outliers.
-- [ ] `pct_within_threshold` is reasonable for presumed inactive
-  periods.
-- [ ] Thresholds are not being estimated from obvious periods of
-  nocturnal movement.
-
-## Activity classification checks
-
-- [ ] Output activity patterns show plausible diel structure.
-- [ ] Detection effort is sufficient for interpreted hours.
-- [ ] Nighttime activity is not dominated by sparse sampling or noise.
-- [ ] Multi-receiver sites are correctly defined.
-- [ ] Redeployed tags produce separate output folders by `Band`.
-
-## Stationary-tag screening checks
-
-- [ ] Flagged deployments were reviewed manually.
-- [ ] Detection timelines were inspected.
-- [ ] Maps or receiver locations were checked when available.
-- [ ] Receiver metadata and possible receiver downtime were considered.
-- [ ] Biological context was considered before removing or interpreting
-  the deployment.
-
-# Common errors and troubleshooting
-
-## Motus login and download troubleshooting
-
-When downloading Motus data for the first time, the R console may prompt
-for your Motus username/email and password.
-
-Enter credentials directly into the R console when prompted.
-
-If the login prompt becomes interrupted or unresponsive:
-
-1.  Press `Esc`
-2.  Restart the R session
-3.  Reload the `motus` package:
-
-``` r
-library(motus)
+```text
+dawn     = nautical dawn → sunrise
+day      = sunrise → sunset
+dusk     = sunset → nautical dusk
+night_1  = nautical dusk → midnight
+night_2  = midnight → nautical dawn
 ```
 
-4.  Rerun Step 1
+`night_1` and `night_2` are kept separate internally so nighttime sequences remain chronologically ordered across midnight.
 
-If downloading fails with:
+---
 
-``` r
-Error: session variable 'userLogin' is undefined
+# Quality-control checklist
+
+Before interpreting activity results, confirm the following.
+
+## Metadata
+
+- [ ] Every `motusTagID × mfgID` in Step 1 has matching deployment metadata.
+- [ ] `Band` values correctly identify biological deployments.
+- [ ] `Date_tagged` values are correct.
+- [ ] `Date_end` values exclude detections outside the focal biological deployment.
+- [ ] `Time_tagged` is included when available.
+- [ ] `Burst_Interval` values are in seconds and reflect actual transmitter programming.
+- [ ] Deployment coordinates are correct.
+- [ ] Every retained receiver appears in `Tower_Metadata.csv`.
+- [ ] Receiver hardware changes are represented correctly.
+
+## Thresholds
+
+- [ ] Thresholds are based on an appropriate inactive period.
+- [ ] Qualifying threshold estimates contain a sufficiently long consecutive detection sequence.
+- [ ] Threshold histograms have adequate sample size.
+- [ ] Threshold distributions are not dominated by obvious noise or extreme skew.
+- [ ] Receiver-type pooling matches the intended hardware categories.
+
+## Activity classification
+
+- [ ] Hourly detection coverage is adequate.
+- [ ] Activity patterns are biologically plausible.
+- [ ] Multi-receiver site definitions reflect the actual receiver array.
+- [ ] Redeployed tags create separate biological deployment outputs.
+- [ ] Dropout rates are not unexpectedly high.
+- [ ] No unexplained receiver-threshold mismatches remain.
+
+## Stationary-tag screening
+
+- [ ] The selected `stationary_screen_timing` is biologically appropriate.
+- [ ] Flagged deployments were manually reviewed.
+- [ ] Detection timelines were considered.
+- [ ] Receiver context and possible downtime were considered.
+- [ ] Maps or receiver locations were reviewed when available.
+- [ ] A stationary flag was not treated as confirmed mortality or tag loss by itself.
+
+## Batch processing
+
+- [ ] `Step3_processing_log.csv` was reviewed.
+- [ ] Any failed datasets were investigated.
+- [ ] Any skipped deployments were understood before downstream analysis.
+
+---
+
+# Common issues and solutions
+
+## Step 1: Motus login prompt does not complete
+
+When using:
+
+```r
+run_mode <- "motus_download"
 ```
 
-the interactive login prompt was likely interrupted before credentials
-were entered completely. Restart the R session and rerun the script.
+Motus may request login credentials in the R console.
 
-If downloading fails with:
+If authentication is interrupted:
 
-``` r
-Error: Could not connect to database:
-unable to open database file
+1. restart the R session
+2. reopen the project
+3. rerun Step 1
+4. enter credentials directly in the console when prompted
+
+Also confirm that the download directory is writable.
+
+---
+
+## Step 1: existing RDS does not contain `ts`
+
+The current workflow uses the original Motus `ts` field as the authoritative timestamp.
+
+The pipeline no longer relies on an existing `time` column.
+
+An existing alltags-style RDS should therefore retain:
+
+```text
+ts
 ```
 
-the download directory may not be writable. This can sometimes occur
-with OneDrive folders, network drives, synced folders, or directories
-with restricted permissions.
+If `ts` is absent, regenerate the alltags-style file from the original Motus data rather than creating an arbitrary replacement timestamp.
 
-Try using a simple local folder such as:
+---
 
-``` r
-motus_database_dir <- "C:/MotusDownloads/Raw_Tower"
+## Step 1: no detections remain after `motusFilter == 1`
+
+Possible causes include:
+
+- the input dataset contains no detections passing the standard Motus filter
+- the wrong project or source file was loaded
+- the file was already subset incorrectly before Step 1
+
+Inspect the input dataset and the `motusFilter` field.
+
+---
+
+## Step 2: no threshold estimated for a tag
+
+Possible causes include:
+
+- too few inactive-period detections
+- no run meeting `min_consecutive_night_detections`
+- poor signal quality
+- missing receiver metadata
+- receiver dates not matching a defined hardware era
+- invalid or missing `Burst_Interval`
+
+A tag does not need its own threshold to be classified in Step 3 if an appropriate pooled receiver-type threshold exists.
+
+---
+
+## Step 2: threshold distribution looks unusually broad
+
+Possible causes include:
+
+- weak or noisy signals
+- animal movement during the presumed inactive period
+- receiver instability
+- inappropriate SNR cutoff
+- mixed receiver hardware eras
+- sparse or fragmented detections
+
+Inspect the threshold histogram and receiver metadata before proceeding.
+
+---
+
+## Step 3: no matching deployment metadata
+
+Check that:
+
+```text
+motusTagID
+mfgID
+Band
 ```
 
-before rerunning the script.
+match the Step 1 dataset and deployment metadata.
 
-### Existing `.rds` file mode troubleshooting
+Also check for accidental conversion of IDs to scientific notation or loss of leading zeros in spreadsheet software.
 
-If running:
+---
 
-``` r
-run_mode <- "existing_rds"
+## Step 3: missing receiver metadata or thresholds
+
+Possible causes include:
+
+- `recvDeployName` does not match `Tower_Metadata.csv`
+- the receiver is missing from tower metadata
+- the receiver hardware era does not cover the detection date
+- Step 2 did not generate a threshold for that receiver type
+- receiver-type names differ between Step 2 and Step 3
+
+If the animal moved beyond the focal study array, distant receivers may also lack the metadata and thresholds required for classification.
+
+Carefully defining `Date_end` can help prevent unrelated later detections from entering a stationary-period activity analysis.
+
+---
+
+## Step 3: all-NA `System2` or `DongleType_2` causes type errors
+
+The current workflow standardizes these optional tower-metadata fields to character values before receiver eras are built.
+
+If this error reappears, confirm that the current version of `Step3_Activity_Functions.R` is being sourced.
+
+Restarting the R session before rerunning Step 3 can help ensure the newest function definitions are loaded.
+
+---
+
+## Step 3: single and loop outputs have different names
+
+Both Step 3 scripts should call the same shared `process_tag_dataset()` function.
+
+Expected output naming is:
+
+```text
+<MotusTagID>_<mfgID>_Band<Band>_<dataset_label>_classified
 ```
 
-and the script fails with:
+For example:
 
-``` r
-Existing alltags RDS file was not found
+```text
+84746_160_Band323154824_ExampleAllerton_classified
 ```
 
-check that:
+If the loop produces a different label, confirm that the latest `Step3_Activity_Functions.R` is being sourced and restart R before rerunning.
 
-1.  the file path is correct
-2.  the file extension is `.rds`
-3.  the network drive is mounted and accessible
-4.  the user has permission to access the file
-5.  the path uses forward slashes (`/`) or double backslashes (`\\`)
+---
 
-Example valid paths:
+## Step 3: stationary-tag screen was skipped
 
-``` r
-existing_alltags_rds <- "C:/Motus_Data/my_alltags_file.rds"
+The screen returns no result when too few qualifying detections are available.
+
+Possible causes include:
+
+- too few detections overall
+- too few detections in the selected diel period
+- too few valid late-window signal comparisons
+- poor signal quality
+- detections that do not occur approximately one burst interval apart
+
+A skipped screen does **not** mean the deployment was confirmed to be active or non-stationary.
+
+---
+
+## Step 3 loop: one tag fails but the script continues
+
+This is intentional.
+
+The loop records the error in:
+
+```text
+Step3_processing_log.csv
 ```
 
-``` r
-existing_alltags_rds <- "C:\\Motus_Data\\my_alltags_file.rds"
+and continues to the next tag dataset.
+
+Review the processing log after the batch run.
+
+---
+
+# Things to consider when adapting the pipeline
+
+## Choose an appropriate inactive baseline
+
+Nighttime works for the breeding Wood Thrush example because the birds are primarily diurnal.
+
+For a nocturnal species, nighttime may be inappropriate.
+
+The inactive calibration period should represent a biologically justified period of relatively low movement.
+
+---
+
+## Reconsider receiver-specific SNR thresholds
+
+The default values were selected for the receiver systems used in this study.
+
+Researchers applying the framework elsewhere should inspect their own receiver signal distributions and may wish to test alternative SNR cutoffs.
+
+---
+
+## Reconsider transmission-event tolerance
+
+The default:
+
+```r
+transmission_event_tolerance <- 0.3
 ```
 
-## Error: no matching bird metadata found
+seconds was chosen to group nearly simultaneous detections of the same burst.
 
-Likely causes:
+Different receiver networks, timestamp precision, or data-processing systems may require a different value.
 
-1.  `motusTagID` does not match between detection data and bird
-    metadata.
-2.  `mfgID` is stored as numeric in one file and character in another.
-3.  The tag was not added to the metadata file.
-4.  The folder name contains an `mfgID` value that does not match the
-    metadata.
+---
 
-## Error: missing receiver metadata
+## Check transmitter burst intervals carefully
 
-Likely causes:
+`Burst_Interval` must be in **seconds**.
 
-1.  `recvDeployName` is spelled differently in detection data and tower
-    metadata.
-2.  A receiver is missing from `Tower_Metadata.csv`.
-3.  A receiver era date does not cover the detection date.
-4.  `System1End`, `System2`, or `DongleType_2` values are missing or
-    incorrectly formatted.
+Do not confuse:
 
-## Error: missing thresholds
+```text
+0.3 s transmission-event tolerance
+```
 
-Likely causes:
+with:
 
-1.  Step 2 has not been run for the relevant receiver type.
-2.  Threshold summary tables are not in the folder Step 3 expects.
-3.  The naming pattern in `list.files()` does not match the actual
-    threshold filenames.
-4.  Tower type naming differs between Step 2 and Step 3.
-5.  A receiver lacks enough nighttime detections to estimate a
-    threshold.
+```text
+approximately 15 s transmitter burst interval
+```
 
-A common cause of missing thresholds is that a bird continued moving
-outside the focal study array after the intended study period ended. If
-detections occur at distant receivers that were not represented in the
-provided Tower_Metadata.csv file or were not included during threshold
-estimation, Step 3 may not be able to assign valid receiver-type
-thresholds.
+These serve different purposes.
 
-This is one reason why carefully defining Date_end in the bird metadata
-is strongly recommended. Restricting detections to the biologically
-relevant study period helps prevent unrelated migration or dispersal
-detections from causing downstream threshold-matching issues.
+---
 
-## Stationary-tag screen skipped
+## Define multi-receiver sites biologically
 
-Likely causes:
+Only receivers representing the same local monitoring array should be grouped.
 
-1.  Too few detections overall.
-2.  Too few daytime detections.
-3.  Too few valid late-window signal-difference comparisons.
-4.  Detections do not meet timing or S2N requirements.
+Grouping distant receivers could cause unrelated detections to be treated as local movement.
 
-A skipped screen does not mean the deployment is clean; it means the
-script did not have enough information to evaluate the stationary-tag
-criteria.
+---
 
-# Tested environment
+## Use the stationary screen only as a diagnostic
 
-This workflow was developed and tested using:
+The stationary-tag screen can indicate:
 
-| Component        | Version    |
-|------------------|------------|
-| R                | 4.5.1      |
-| Operating system | Windows 11 |
-| motus            | 6.1.2      |
+- possible tag loss
+- possible mortality
+- a stationary transmitter
+- prolonged inactivity
+- unusual receiver behavior
 
-Package versions may change over time. Users applying this workflow to
-new systems or future package versions should inspect outputs carefully
-and review diagnostic plots before interpreting biological activity
-estimates.
+but does not distinguish among these outcomes.
+
+---
+
+## Inspect diagnostic plots
+
+Automated classification should not replace data-quality review.
+
+At minimum, examine:
+
+- threshold histograms
+- hourly activity patterns
+- detection coverage
+- burst-interval distributions
+- signal-difference distributions
+- dropout patterns
+- stationary-tag diagnostics
+
+before downstream biological interpretation.
+
+---
 
 # Assumptions and limitations
 
 ## Activity is inferred, not directly observed
 
-The pipeline estimates movement-based activity from signal variation. It
-does not identify specific behaviors such as foraging, singing,
-provisioning, preening, or predator avoidance.
+The pipeline estimates movement-based activity from telemetry signal patterns.
 
-## Nighttime is used as an inactive baseline
+It does not identify specific behaviors such as:
 
-For Wood Thrushes and similar diurnal songbirds, nighttime is assumed to
-represent relatively low movement. However, occasional nocturnal
-movement can occur. This inactive period varies by species.
+- foraging
+- singing
+- provisioning
+- preening
+- resting
+- predator avoidance
 
-## Thresholds partially reduce distance bias, but do not eliminate it
+Similar activity values may therefore represent different behaviors in different contexts.
 
-Signal strength is recorded on a logarithmic dB scale, meaning identical
-biological movements can produce different absolute signal changes
-depending on distance from the receiver. To reduce this issue, the
-workflow estimates activity thresholds from proportional signal changes
-rather than raw dB differences and applies these proportional thresholds
-directly during activity classification.
+---
 
-This proportional framework helps reduce the tendency for movements near
-receivers to appear artificially more active than equivalent movements
-farther away. However, activity estimates may still retain some residual
-distance dependence because received signal strength is also influenced
-by environmental conditions, vegetation structure, terrain, antenna
-orientation, atmospheric conditions, receiver-specific processing
-behavior, and local electromagnetic noise.
+## Proportional scaling reduces but does not eliminate signal bias
 
-As a result, the workflow should be interpreted as reducing rather than
-fully eliminating distance-related bias in telemetry-derived activity
-estimates.
+Received signal strength remains influenced by:
 
-In addition, some environments may introduce unusually complex or noisy
-signal behavior. Urban areas can be especially challenging because
-buildings, electrical infrastructure, metal structures, and other
-sources of electromagnetic interference may alter signal propagation,
-increase background noise, or create signal reflections and irregular
-attenuation patterns. Dense vegetation, complex terrain, and highly
-heterogeneous landscapes may also affect signal stability, signal
-propagation, and detection consistency.
+- transmitter-receiver distance
+- vegetation
+- terrain
+- antenna orientation
+- weather
+- receiver processing
+- electromagnetic noise
+- local receiver geometry
+
+The proportional framework reduces dependence on absolute dB changes but cannot remove all environmental or receiver-related variation.
+
+---
 
 ## Receiver hardware matters
 
-Different receivers and dongle types can produce different signal
-distributions. This pipeline groups thresholds by receiver type to
-improve comparability, but threshold transferability should still be
-checked with diagnostics.
+Different receiver systems can differ in signal scale, sensitivity, processing, and noise.
 
-## Redeployments must be documented accurately
+Thresholds should only be transferred among receiver systems for which comparable signal behavior and appropriate calibration have been established.
 
-The pipeline depends on accurate `Band`, `Date_tagged`, and `Date_end`
-values. Errors in deployment metadata can cause detections to be
-assigned to the wrong bird.
+---
 
-## Stationary-tag screening is diagnostic only
+## Accurate deployment metadata are essential
 
-The stationary-tag screen identifies deployments that may require manual
-review. A flagged deployment may represent mortality, a dropped tag, a
-stationary transmitter, prolonged inactivity, or receiver-specific
-artifacts. It should not be treated as confirmed mortality or tag loss
-without additional evidence.
+Errors in:
 
-# Adapting the pipeline to another project
+```text
+Band
+Date_tagged
+Time_tagged
+Date_end
+Burst_Interval
+```
 
-To adapt this workflow, update the following:
+can assign detections to the wrong biological deployment or produce incorrect timing expectations.
 
-1.  Motus project or receiver ID in Step 1
-2.  Input/output paths
-3.  Bird metadata file
-4.  Tower metadata file
-5.  Tag duty cycle or Burst_Interval metadata (if using
-    deployment-specific burst intervals)
-6.  Receiver-specific S2N cutoffs and timing tolerances
-7.  Inactive baseline period
-8.  Multi-receiver site definitions
-9.  Threshold summary file pattern
-10. Output folder names
-11. Stationary-tag screening settings, if the species or study system
-    requires different assumptions
+---
+
+## Highly mobile animals may produce sparse local records
+
+Activity estimation depends on sufficient repeated detections.
+
+Animals that quickly leave receiver coverage may not provide enough consecutive detections for threshold estimation or hourly activity summaries.
+
+---
+
+# Adapting the pipeline to another study
+
+At minimum, review these settings before using the workflow on a different project:
+
+1. Motus project ID or input RDS
+2. input and output paths
+3. dataset label
+4. deployment metadata
+5. receiver metadata
+6. transmitter burst intervals
+7. transmission-event tolerance
+8. burst-interval timing tolerance
+9. receiver-specific SNR cutoffs
+10. inactive calibration period
+11. multi-receiver site definitions
+12. hourly coverage threshold
+13. stationary-screen timing
+14. stationary-screen thresholds
+15. receiver types represented in the project
+
+Do not assume that parameters validated for Wood Thrushes are automatically appropriate for another species or receiver system.
+
+---
 
 # Minimal run example
 
 ## Step 1
 
-``` r
+For the included example:
+
+```r
 run_mode <- "example"
 
 source("Step1_Motus_to_Individual_Birds.R")
 ```
 
-For a full Motus project download:
+For a Motus project download:
 
-``` r
+```r
 run_mode <- "motus_download"
 
-projRecv_id <- 787
-state_label <- "IL"
-project_label <- "IL_WOTH"
+projRecv_id <- YOUR_PROJECT_ID
 
 source("Step1_Motus_to_Individual_Birds.R")
 ```
 
-For an existing flattened alltags `.rds` file:
+For an existing alltags-style RDS:
 
-``` r
+```r
 run_mode <- "existing_rds"
 
-existing_alltags_rds <- "//path/to/your/alltags_file.rds"
-
-state_label <- "IL"
-project_label <- "IL_WOTH"
+existing_alltags_rds <- here::here(
+  "path",
+  "to",
+  "your_alltags_file.RDS"
+)
 
 source("Step1_Motus_to_Individual_Birds.R")
 ```
+
+---
 
 ## Step 2
 
-``` r
-root_dir <- here("Sample_Data", "Interim", "Motus_Tower_Data_Filtered")
+Edit the USER SETTINGS section as needed, then run:
 
-bird_metadata_path <- here("Sample_Data", "Raw", "Metadata", "WOTH_IL_Metadata.csv")
-tower_metadata_path <- here("Sample_Data", "Raw", "Metadata", "Tower_Metadata.csv")
-
+```r
 source("Step2_Activity_Threshold_Calculation.R")
 ```
 
+---
+
 ## Step 3A: one tag dataset
 
-``` r
-data_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered",
-  "YOUR_TAG_FOLDER_NAME"
-)
+Edit:
 
+```r
+target_MotusTagID <- "84746"
+target_mfgID <- "160"
+target_dataset_label <- "ExampleAllerton"
+```
+
+then run:
+
+```r
 source("Step3_Activity_Classification.R")
 ```
 
+---
+
 ## Step 3B: all tag datasets
 
-``` r
-data_parent_dir <- here(
-  "Sample_Data", "Interim", "Motus_Tower_Data_Filtered"
-)
+After confirming that the single-dataset output looks appropriate:
 
+```r
 source("Step3_LOOP_Activity_Classification.R")
 ```
+
+Then review:
+
+```text
+Step3_processing_log.csv
+```
+
+---
 
 # Glossary
 
 | Term | Meaning |
-|----|----|
+|---|---|
 | Activity | Inferred movement-based activity from telemetry signal patterns |
-| Baseline | Expected signal variation during presumed inactive periods |
-| Deployment | One biological use of a tag on one bird |
-| Duty cycle | Expected interval between tag detections |
-| Motus filter | Standard Motus detection filter using `motusFilter == 1` |
-| Receiver era | Time period with consistent receiver hardware |
-| S2N | Signal-to-noise ratio, calculated as `sig - noise` |
-| Signal threshold | Boundary separating expected inactive signal variation from potential movement |
-| `sig_diff` | Difference in signal strength between consecutive detections |
-| `sig_ratio` | Proportional signal change derived from dB difference |
-| Stationary-tag screen | Diagnostic screen for possible dropped tags, mortality, stationary transmitters, or prolonged inactivity |
-| Tower type | Receiver hardware category used for threshold grouping |
+| Band | Biological individual/deployment identifier |
+| Burst interval | Programmed interval between transmitter bursts |
+| Dataset label | User-defined label retained in Step 1 and Step 3 output names |
+| Deployment | One biological use of a transmitter on an animal |
+| Inactive baseline | Signal variation during a presumed low-movement period |
+| MotusTagID | Motus-assigned tag identifier |
+| mfgID | Manufacturer transmitter identifier |
+| Receiver era | Period with consistent receiver hardware |
+| Receiver type | Combined hardware category used for threshold pooling |
+| SNR | Signal-to-noise ratio calculated as `sig - noise` |
+| `sig_diff` | dB difference between valid consecutive transmissions |
+| `sig_ratio` | Proportional signal change derived from `sig_diff` |
+| Stationary-tag screen | Diagnostic screen for unusually prolonged inactivity |
+| Transmission event | One underlying transmitter burst, possibly recorded multiple times |
 
-# Final notes
+---
 
-This pipeline was developed for thesis research on Wood Thrush activity
-using automated radiotelemetry. The included example dataset is provided
-so users can test the workflow on a small, real Motus-style dataset
-before applying the code to a full project download.
+# Data permissions and usage
 
-This pipeline is intended to be transparent, adaptable, and
-conservative. However, every new species, tag type, receiver array, or
-study system should be checked carefully before interpreting activity
-estimates biologically.
+The included example detections are **real Wood Thrush data subsampled to approximately one week at an Illinois breeding site with two receivers** and are provided for demonstrating and testing the workflow.
 
-If you find mistakes or have suggestions for improving the code, please
-contact Lauren Brunk or Mike Ward. Thank you!
+They should not be treated as an independent public ecological dataset beyond the purpose for which they are included in this repository unless the accompanying data-use terms explicitly allow that use.
+
+Users applying the pipeline to Motus data are responsible for following applicable:
+
+- Motus data-use agreements
+- project permissions
+- collaborator expectations
+- permitting requirements
+
+---
+
+# Tested environment
+
+The workflow was developed using:
+
+| Component | Version |
+|---|---|
+| R | 4.5.1 |
+| Operating system | Windows 11 |
+
+Exact package versions are recorded in:
+
+```text
+renv.lock
+```
+
+Use:
+
+```r
+renv::restore()
+```
+
+for the most reproducible setup.
+
+---
+
+# Getting help
+
+For reproducibility problems, software bugs, or suggested improvements, please open a GitHub issue when possible so that questions and solutions remain visible to other users.
+
+For project-specific questions, contact:
+
+**Lauren E. Brunk**  
+**Michael P. Ward**
+
+---
 
 # License
 
-This repository is released under the GNU General Public License v3.0
-(GPL-3.0).
+This repository is released under the GNU General Public License v3.0 (GPL-3.0).
 
-You are free to use, modify, and redistribute this code under the terms
-of the GPL-3.0 license. Modified versions that are distributed should
-also remain open-source under the same license. See the `LICENSE` file
-for full license terms.
+See:
 
-# Citation and attribution
+```text
+LICENSE
+```
 
-If you use or adapt this pipeline, please cite the thesis and
-repository.
+for the full license terms.
 
-Brunk L (2026) *Implementing a telemetry-based method to quantify
-activity across the full annual cycle of the Wood Thrush*. MS thesis,
-University of Illinois Urbana–Champaign
+---
 
-<div class="callout">
+# Final notes
 
-<strong>Relationship to thesis implementation:</strong> This repository
-reflects the current implementation of the telemetry activity framework
-and includes updates made after the original thesis analyses were
-completed. <br><br>
+This pipeline is intended to be transparent, reproducible, and adaptable, but activity estimates should always be evaluated in the context of species biology, study design, receiver coverage, and signal quality.
 
-Most notably, the current repository applies proportional signal-change
-thresholds directly during activity classification. In the original
-thesis implementation, thresholds were estimated from proportional
-signal changes but then converted back to dB-scale thresholds during
-final classification. <br><br>
+The included example dataset provides a small real-data test case so users can verify that the workflow runs successfully before applying it to a full Motus project.
 
-The updated implementation better preserves the proportional scaling
-framework throughout classification and further reduces
-distance-dependent effects on activity estimation.
-
-</div>
+Because full-project runtime and storage requirements depend strongly on project size, users working with large Motus datasets should expect substantially longer processing times than the approximately 5–10 minutes required for the included example.
