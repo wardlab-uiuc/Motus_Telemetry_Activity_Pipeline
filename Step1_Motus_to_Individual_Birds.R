@@ -7,46 +7,195 @@
 # MotusTagID × mfgID datasets.
 #
 # INPUT OPTIONS
-# 1. Included example dataset
-# 2. Direct Motus project download
-# 3. Existing Motus alltags-style RDS file
+#   1. Included example dataset
+#   2. Direct Motus project download
+#   3. Existing Motus alltags-style RDS file
 #
 # OUTPUT
 # One folder per MotusTagID × mfgID containing:
-# • .RDS file for use in subsequent pipeline steps
-# • .csv file for inspection outside R
+#   • .RDS file for use in subsequent pipeline steps
+#   • .csv file for inspection outside R
+#
+# BEFORE RUNNING
+# Edit Section 0 ("USER SETTINGS").
+#
+# After the user settings are defined, the script:
+#
+#   1. Installs `renv` if needed
+#   2. Activates the project-specific package environment
+#   3. Restores package versions recorded in `renv.lock`
+#   4. Verifies and loads packages required by Step 1
+#   5. Validates the user settings
+#   6. Authenticates with Motus when `run_mode = "motus_download"`
+#   7. Loads, filters, and saves Motus detection data
 #
 # IMPORTANT
-# Step 1 is the entry point for the pipeline. Before processing data, it:
+# Motus downloads should be run interactively in R/RStudio because
+# authentication may require entering a Motus username/email and password
+# in the R console.
 #
-# 1. Installs `renv` if needed
-# 2. Activates the project-specific package environment
-# 3. Restores package versions recorded in `renv.lock`
-# 4. Verifies that packages required by Step 1 are available
-#
-# The first run may take several minutes while packages are installed.
-# Later runs should be much faster because `renv` reuses packages that are
-# already installed.
-#
-# After package setup, edit Section 1 ("USER SETTINGS") before running the
-# remainder of the script.
-#
-# If run_mode = "motus_download", run this script interactively in R/RStudio.
-# Motus authentication may be required before the project database can be
-# downloaded or updated.
+# NEVER store Motus credentials in this script.
 ################################################################################
 
 
+
 # ==============================================================================
-# 0) PROJECT ENVIRONMENT AND PACKAGES
+# 0) USER SETTINGS — EDIT THIS SECTION
 # ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# RUN MODE
+# ------------------------------------------------------------------------------
+
+# Choose ONE:
+#
+# "example"
+#   Run the included example dataset.
+#   No Motus login or external input file is required.
+#
+# "motus_download"
+#   Download or update a Motus project database directly from Motus.
+#   A valid Motus project receiver ID (`projRecv_id`) is required.
+#   Motus authentication will occur before download.
+#
+# "existing_rds"
+#   Load an existing flattened Motus alltags-style .RDS file.
+#   The file must contain the original Motus `ts` timestamp column.
+
+run_mode <- "example"
+
+
+
+# ------------------------------------------------------------------------------
+# MOTUS PROJECT
+# ------------------------------------------------------------------------------
+
+# Used only when:
+#
+#   run_mode <- "motus_download"
+#
+# Replace NA with the Motus project receiver ID for the project you want
+# to access.
+#
+# Example:
+#
+#   projRecv_id <- 787
+
+projRecv_id <- NA_integer_
+
+
+
+# ------------------------------------------------------------------------------
+# EXISTING ALLTAGS RDS
+# ------------------------------------------------------------------------------
+
+# Used only when:
+#
+#   run_mode <- "existing_rds"
+#
+# Supply the path to an existing flattened Motus alltags-style .RDS file.
+#
+# The dataset must contain:
+#
+#   ts
+#   motusTagID
+#   mfgID
+#   motusFilter
+#
+# Base-R `file.path()` is intentionally used here so this section can run
+# before any packages are installed or loaded.
+
+existing_alltags_rds <- file.path(
+  "Sample_Data",
+  "Raw",
+  "Raw_Tower",
+  "your_existing_alltags_file.RDS"
+)
+
+
+
+# ------------------------------------------------------------------------------
+# OUTPUT LABELS
+# ------------------------------------------------------------------------------
+
+# Short label added to output folder and file names.
+#
+# This can represent a location, species, project, or sampling period.
+#
+# Examples:
+#
+#   "IL"
+#   "Ontario"
+#   "WOTH"
+#   "Spring2025"
+
+dataset_label <- "IL"
+
+
+# Label used when saving the complete flattened alltags dataset.
+#
+# Example:
+#
+#   "IL_WOTH"
+
+project_label <- "IL_WOTH"
+
+
+
+# ------------------------------------------------------------------------------
+# OUTPUT DIRECTORIES
+# ------------------------------------------------------------------------------
+
+# Directory where the downloaded .motus database and/or complete alltags
+# dataset will be stored.
+#
+# Base-R `file.path()` is used here so User Settings can be evaluated before
+# the `here` package or any other package is available.
+
+motus_database_dir <- file.path(
+  "Sample_Data",
+  "Raw",
+  "Raw_Tower"
+)
+
+
+# Directory where individual MotusTagID × mfgID datasets will be saved.
+
+filtered_indiv_dir <- file.path(
+  "Sample_Data",
+  "Interim",
+  "Motus_Tower_Data_Filtered"
+)
+
+
+
+# ==============================================================================
+# END USER SETTINGS
+#
+# Users should generally not need to edit anything below this point.
+# ==============================================================================
+
+
+
+# ==============================================================================
+# 1) PROJECT ENVIRONMENT AND PACKAGES
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# Set system time zone
+# ------------------------------------------------------------------------------
 
 # Motus timestamps are stored in UTC.
 #
 # Keep the R session in UTC until local time is explicitly assigned later
 # in the activity-processing workflow.
 
-Sys.setenv(TZ = "UTC")
+Sys.setenv(
+  TZ = "UTC"
+)
+
 
 
 # ------------------------------------------------------------------------------
@@ -56,7 +205,9 @@ Sys.setenv(TZ = "UTC")
 # `renv` manages the reproducible R package environment for this repository.
 #
 # The `renv.lock` file records the package versions used and tested with the
-# pipeline. If `renv` itself is not installed, install it first.
+# pipeline.
+#
+# If `renv` itself is not installed, install it first.
 
 if (!requireNamespace("renv", quietly = TRUE)) {
   
@@ -71,6 +222,7 @@ if (!requireNamespace("renv", quietly = TRUE)) {
 }
 
 
+
 # Confirm that renv was installed successfully.
 
 if (!requireNamespace("renv", quietly = TRUE)) {
@@ -82,6 +234,7 @@ if (!requireNamespace("renv", quietly = TRUE)) {
     "Then restart R and rerun Step 1."
   )
 }
+
 
 
 # ------------------------------------------------------------------------------
@@ -111,13 +264,13 @@ if (file.exists("renv/activate.R")) {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Restore package versions recorded in renv.lock
 # ------------------------------------------------------------------------------
 
-# Restore the complete package environment recorded for this repository.
-#
 # `renv::restore()` compares the current project library with `renv.lock`.
+#
 # Packages that already match the recorded versions are reused rather than
 # reinstalled.
 #
@@ -128,6 +281,7 @@ if (file.exists("renv.lock")) {
   message(
     "📦 Checking and restoring the package environment from renv.lock..."
   )
+  
   
   tryCatch(
     {
@@ -149,27 +303,26 @@ if (file.exists("renv.lock")) {
     }
   )
   
+  
   message(
     "✅ Project package environment restored."
   )
+  
   
 } else {
   
   warning(
     "`renv.lock` was not found.\n",
     "Exact package versions cannot be restored.\n",
-    "Required Step 1 packages will be installed from their repositories instead."
+    "Required Step 1 packages will be installed directly if needed."
   )
 }
+
 
 
 # ------------------------------------------------------------------------------
 # Required Step 1 packages
 # ------------------------------------------------------------------------------
-
-# These are the packages directly required by Step 1.
-#
-# When renv.lock is available, they should already have been restored above.
 
 required_packages <- c(
   "motus",
@@ -180,6 +333,7 @@ required_packages <- c(
   "lubridate",
   "here"
 )
+
 
 
 # ------------------------------------------------------------------------------
@@ -193,19 +347,21 @@ package_available <- vapply(
   FUN.VALUE = logical(1)
 )
 
+
 missing_packages <- required_packages[
   !package_available
 ]
+
 
 
 # ------------------------------------------------------------------------------
 # Fallback installation when renv.lock is unavailable
 # ------------------------------------------------------------------------------
 
-# Normally all required packages should be supplied by `renv::restore()`.
+# Normally required packages should be supplied by `renv::restore()`.
 #
 # If the repository does not contain renv.lock, install missing Step 1 packages
-# directly so that the script can still run.
+# directly so the script can still run.
 
 if (
   length(missing_packages) > 0 &&
@@ -220,6 +376,7 @@ if (
     )
   )
   
+  
   install.packages(
     missing_packages,
     repos = c(
@@ -228,6 +385,7 @@ if (
     )
   )
 }
+
 
 
 # ------------------------------------------------------------------------------
@@ -242,6 +400,7 @@ package_available <- vapply(
   quietly = TRUE,
   FUN.VALUE = logical(1)
 )
+
 
 still_missing <- required_packages[
   !package_available
@@ -263,6 +422,7 @@ if (length(still_missing) > 0) {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Load required Step 1 packages
 # ------------------------------------------------------------------------------
@@ -275,138 +435,11 @@ invisible(
   )
 )
 
+
 message(
   "✅ Required Step 1 packages successfully loaded."
 )
 
-
-# ==============================================================================
-# 1) USER SETTINGS — EDIT THIS SECTION
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# RUN MODE
-# ------------------------------------------------------------------------------
-
-# Choose ONE:
-#
-# "example"
-# Run the included example dataset.
-# No Motus login or external input file is required.
-#
-# "motus_download"
-# Download or update a Motus project database directly from Motus.
-# A valid Motus project receiver ID (`projRecv_id`) is required.
-#
-# IMPORTANT:
-# Run the script interactively when using this mode.
-#
-# If you are not already authenticated with Motus, you may be prompted
-# to enter your Motus username/email and password in the R console.
-#
-# Do NOT save Motus credentials in this script.
-#
-# "existing_rds"
-# Load an existing flattened Motus alltags-style .RDS file.
-# The file must contain the original Motus `ts` timestamp column.
-
-run_mode <- "example"
-
-
-# ------------------------------------------------------------------------------
-# MOTUS PROJECT
-# ------------------------------------------------------------------------------
-
-# Used only when:
-#
-# run_mode <- "motus_download"
-#
-# Replace NA with the Motus project receiver ID for the project you want
-# to access.
-#
-# Example:
-#
-# projRecv_id <- 787
-
-projRecv_id <- NA_integer_
-
-
-# ------------------------------------------------------------------------------
-# EXISTING ALLTAGS RDS
-# ------------------------------------------------------------------------------
-
-# Used only when:
-#
-# run_mode <- "existing_rds"
-#
-# Supply the path to an existing flattened Motus alltags-style .RDS file.
-#
-# The dataset must contain:
-#
-# ts
-# motusTagID
-# mfgID
-# motusFilter
-
-existing_alltags_rds <- here::here(
-  "Sample_Data",
-  "Raw",
-  "Raw_Tower",
-  "your_existing_alltags_file.RDS"
-)
-
-
-# ------------------------------------------------------------------------------
-# OUTPUT LABELS
-# ------------------------------------------------------------------------------
-
-# Short label added to output folder and file names.
-#
-# This can represent a location, species, project, or sampling period.
-#
-# Examples:
-#
-# "IL"
-# "Ontario"
-# "WOTH"
-# "Spring2025"
-
-dataset_label <- "IL"
-
-
-# Label used when saving the complete flattened alltags dataset.
-
-project_label <- "IL_WOTH"
-
-
-# ------------------------------------------------------------------------------
-# OUTPUT DIRECTORIES
-# ------------------------------------------------------------------------------
-
-# Directory where the downloaded .motus database and/or complete alltags
-# dataset will be stored.
-
-motus_database_dir <- here::here(
-  "Sample_Data",
-  "Raw",
-  "Raw_Tower"
-)
-
-
-# Directory where individual MotusTagID × mfgID datasets will be saved.
-
-filtered_indiv_dir <- here::here(
-  "Sample_Data",
-  "Interim",
-  "Motus_Tower_Data_Filtered"
-)
-
-
-# ==============================================================================
-# END USER SETTINGS
-#
-# Users should generally not need to edit anything below this point.
-# ==============================================================================
 
 
 # ==============================================================================
@@ -437,6 +470,7 @@ if (!run_mode %in% valid_run_modes) {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Define automatic date label
 # ------------------------------------------------------------------------------
@@ -447,13 +481,14 @@ download_id <- format(
 )
 
 
+
 # ------------------------------------------------------------------------------
 # Define included example dataset
 # ------------------------------------------------------------------------------
 
 # This path is internal to the repository and normally should not be edited.
 
-example_rds <- here::here(
+example_rds <- file.path(
   "Sample_Data",
   "Raw",
   "Raw_Tower",
@@ -461,7 +496,10 @@ example_rds <- here::here(
 )
 
 
-# Use standardized labels when running the included example.
+
+# ------------------------------------------------------------------------------
+# Use standardized labels when running the included example
+# ------------------------------------------------------------------------------
 
 if (run_mode == "example") {
   
@@ -471,8 +509,9 @@ if (run_mode == "example") {
 }
 
 
+
 # ------------------------------------------------------------------------------
-# Validate mode-specific settings
+# Validate Motus project settings
 # ------------------------------------------------------------------------------
 
 if (run_mode == "motus_download") {
@@ -486,21 +525,17 @@ if (run_mode == "motus_download") {
     stop(
       "`projRecv_id` must contain one valid Motus project receiver ID ",
       "when run_mode = \"motus_download\".\n\n",
-      "Example:\n",
-      "projRecv_id <- 787"
+      "Example:\n\n",
+      "  projRecv_id <- 787"
     )
   }
-  
-  
-  message(
-    "\n🔐 MOTUS AUTHENTICATION\n",
-    "This run mode accesses a Motus project directly.\n",
-    "If your current R session is not authenticated, Motus may prompt you ",
-    "for your username/email and password in the console.\n",
-    "Do not store Motus credentials in this script.\n"
-  )
 }
 
+
+
+# ------------------------------------------------------------------------------
+# Validate existing RDS settings
+# ------------------------------------------------------------------------------
 
 if (run_mode == "existing_rds") {
   
@@ -514,6 +549,7 @@ if (run_mode == "existing_rds") {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Create required directories
 # ------------------------------------------------------------------------------
@@ -524,6 +560,7 @@ dir.create(
   showWarnings = FALSE
 )
 
+
 dir.create(
   filtered_indiv_dir,
   recursive = TRUE,
@@ -531,9 +568,76 @@ dir.create(
 )
 
 
+message(
+  "✅ User settings validated."
+)
+
+
+
 # ==============================================================================
-# 3) LOAD MOTUS DATA
+# 3) MOTUS AUTHENTICATION
 # ==============================================================================
+
+# Authentication is required ONLY when downloading data directly from Motus.
+#
+# Users running the included example or supplying an existing RDS do not need
+# to authenticate.
+#
+# Calling `motus::getAccess()` before `tagme()` initiates Motus authentication
+# before any project database is downloaded or updated.
+#
+# Enter Motus credentials only when prompted interactively in the R console.
+#
+# NEVER store usernames or passwords in this script.
+
+if (run_mode == "motus_download") {
+  
+  message(
+    "\n",
+    "===============================================================================\n",
+    "🔐 MOTUS AUTHENTICATION\n",
+    "===============================================================================\n",
+    "A Motus login is required before project data can be downloaded.\n\n",
+    "Enter your Motus username/email and password in the R console when prompted.\n",
+    "Credentials should NEVER be stored in this script.\n"
+  )
+  
+  
+  motus_access <- tryCatch(
+    {
+      
+      motus::getAccess()
+      
+    },
+    error = function(e) {
+      
+      stop(
+        "\n❌ Motus authentication failed.\n\n",
+        "Please confirm that:\n",
+        "  1. Your Motus username/email and password are correct\n",
+        "  2. Your Motus account is active\n",
+        "  3. Your internet connection is active\n\n",
+        "You can try starting a new authentication session with:\n\n",
+        "  motus::motusLogout()\n",
+        "  motus::getAccess()\n\n",
+        "Original error:\n  ",
+        conditionMessage(e)
+      )
+    }
+  )
+  
+  
+  message(
+    "✅ Motus authentication successful."
+  )
+}
+
+
+
+# ==============================================================================
+# 4) LOAD MOTUS DATA
+# ==============================================================================
+
 
 if (run_mode == "example") {
   
@@ -566,6 +670,7 @@ if (run_mode == "example") {
   )
   
   
+  
 } else if (run_mode == "existing_rds") {
   
   
@@ -588,6 +693,7 @@ if (run_mode == "example") {
   )
   
   
+  
 } else if (run_mode == "motus_download") {
   
   
@@ -602,7 +708,10 @@ if (run_mode == "example") {
   )
   
   
-  # Define the local Motus database path.
+  
+  # ---------------------------------------------------------------------------
+  # Define local Motus database path
+  # ---------------------------------------------------------------------------
   
   motus_file <- file.path(
     motus_database_dir,
@@ -614,13 +723,24 @@ if (run_mode == "example") {
   )
   
   
-  # If the database does not already exist locally, create a new one.
-  # Otherwise, update the existing database.
+  
+  # ---------------------------------------------------------------------------
+  # Determine whether a new database must be created
+  # ---------------------------------------------------------------------------
+  
+  # If the database does not exist locally, create a new one.
+  #
+  # If it already exists, update the existing database.
   
   create_new_db <- !file.exists(
     motus_file
   )
   
+  
+  
+  # ---------------------------------------------------------------------------
+  # Download or update Motus database
+  # ---------------------------------------------------------------------------
   
   tryCatch(
     {
@@ -628,16 +748,17 @@ if (run_mode == "example") {
       motus::tagme(
         projRecv = projRecv_id,
         dir = motus_database_dir,
-        new = create_new_db
+        new = create_new_db,
+        update = TRUE
       )
       
     },
     error = function(e) {
       
       stop(
-        "\n❌ Unable to access the Motus project.\n\n",
+        "\n❌ Unable to access or download the Motus project.\n\n",
         "Possible causes:\n",
-        "  1. Motus authentication is required or credentials are incorrect\n",
+        "  1. Motus authentication failed or expired\n",
         "  2. Your Motus account does not have access to project ",
         projRecv_id,
         "\n",
@@ -652,6 +773,11 @@ if (run_mode == "example") {
   )
   
   
+  
+  # ---------------------------------------------------------------------------
+  # Confirm database exists
+  # ---------------------------------------------------------------------------
+  
   if (!file.exists(motus_file)) {
     
     stop(
@@ -661,8 +787,9 @@ if (run_mode == "example") {
   }
   
   
+  
   # ---------------------------------------------------------------------------
-  # Extract the alltags table
+  # Extract alltags table
   # ---------------------------------------------------------------------------
   
   message(
@@ -695,6 +822,11 @@ if (run_mode == "example") {
   )
   
   
+  
+  # ---------------------------------------------------------------------------
+  # Confirm detections are present
+  # ---------------------------------------------------------------------------
+  
   if (nrow(df_alltags) == 0) {
     
     stop(
@@ -709,6 +841,11 @@ if (run_mode == "example") {
 }
 
 
+
+# ------------------------------------------------------------------------------
+# Report detections loaded
+# ------------------------------------------------------------------------------
+
 message(
   "Loaded ",
   format(
@@ -719,16 +856,18 @@ message(
 )
 
 
+
 # ==============================================================================
-# 4) VALIDATE AND STANDARDIZE INPUT DATA
+# 5) VALIDATE AND STANDARDIZE INPUT DATA
 # ==============================================================================
+
 
 # Step 1 requires the following fields from a Motus alltags-style dataset:
 #
-# ts          = Motus detection timestamp
-# motusTagID  = Motus tag identifier
-# mfgID       = manufacturer identifier
-# motusFilter = Motus false-positive filter
+#   ts          = Motus detection timestamp
+#   motusTagID  = Motus tag identifier
+#   mfgID       = manufacturer identifier
+#   motusFilter = Motus false-positive filter
 
 required_cols <- c(
   "ts",
@@ -761,15 +900,17 @@ if (length(missing_cols) > 0) {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Standardize timestamps and tag identifiers
 # ------------------------------------------------------------------------------
 
-# Motus stores `ts` as seconds since 1 January 1970 in UTC.
+# Motus stores `ts` as seconds since 1 January 1970 UTC.
 #
 # The original numeric `ts` column is retained.
 #
 # A POSIXct `time` column is created for easier inspection and downstream use.
+#
 # Local time is NOT assigned here; local diel timing is calculated later from
 # deployment coordinates.
 
@@ -788,8 +929,15 @@ df_alltags <- df_alltags %>%
   )
 
 
+
+# ------------------------------------------------------------------------------
+# Check timestamp conversion
+# ------------------------------------------------------------------------------
+
 n_missing_time <- sum(
-  is.na(df_alltags$time)
+  is.na(
+    df_alltags$time
+  )
 )
 
 
@@ -810,15 +958,16 @@ message(
 )
 
 
+
 # ==============================================================================
-# 5) SAVE COMPLETE ALLTAGS DATASET
+# 6) SAVE COMPLETE ALLTAGS DATASET
 # ==============================================================================
 
 # Save a reproducible copy of the complete flattened alltags table after
 # standardization.
 #
-# When an existing RDS is supplied, the original file is retained and is not
-# duplicated.
+# When an existing RDS is supplied, retain the original file rather than
+# creating a duplicate.
 
 if (run_mode != "existing_rds") {
   
@@ -853,8 +1002,9 @@ if (run_mode != "existing_rds") {
 }
 
 
+
 # ==============================================================================
-# 6) APPLY MOTUS FILTER
+# 7) APPLY MOTUS FILTER
 # ==============================================================================
 
 message(
@@ -891,8 +1041,9 @@ message(
 )
 
 
+
 # ==============================================================================
-# 7) IDENTIFY UNIQUE TAG DATASETS
+# 8) IDENTIFY UNIQUE TAG DATASETS
 # ==============================================================================
 
 message(
@@ -926,8 +1077,9 @@ message(
 )
 
 
+
 # ==============================================================================
-# 8) SPLIT AND SAVE INDIVIDUAL TAG DATASETS
+# 9) SPLIT AND SAVE INDIVIDUAL TAG DATASETS
 # ==============================================================================
 
 message(
@@ -947,7 +1099,10 @@ for (i in seq_len(nrow(tag_groups))) {
   mfg_id_original <- tag_groups$mfgID[i]
   
   
-  # Use a readable placeholder in file names when mfgID is missing.
+  
+  # ---------------------------------------------------------------------------
+  # Create readable manufacturer ID for file names
+  # ---------------------------------------------------------------------------
   
   mfg_id_for_filename <- mfg_id_original
   
@@ -959,6 +1114,7 @@ for (i in seq_len(nrow(tag_groups))) {
     
     mfg_id_for_filename <- "unknownMFG"
   }
+  
   
   
   # ---------------------------------------------------------------------------
@@ -992,6 +1148,7 @@ for (i in seq_len(nrow(tag_groups))) {
   }
   
   
+  
   # ---------------------------------------------------------------------------
   # Define output folder and file names
   # ---------------------------------------------------------------------------
@@ -1008,6 +1165,11 @@ for (i in seq_len(nrow(tag_groups))) {
   )
   
   
+  
+  # ---------------------------------------------------------------------------
+  # Create individual output folder
+  # ---------------------------------------------------------------------------
+  
   output_path <- file.path(
     filtered_indiv_dir,
     output_folder
@@ -1020,6 +1182,11 @@ for (i in seq_len(nrow(tag_groups))) {
     showWarnings = FALSE
   )
   
+  
+  
+  # ---------------------------------------------------------------------------
+  # Define individual output file paths
+  # ---------------------------------------------------------------------------
   
   rds_path <- file.path(
     output_path,
@@ -1037,6 +1204,7 @@ for (i in seq_len(nrow(tag_groups))) {
       ".csv"
     )
   )
+  
   
   
   # ---------------------------------------------------------------------------
@@ -1068,12 +1236,16 @@ for (i in seq_len(nrow(tag_groups))) {
 }
 
 
+
 # ==============================================================================
-# 9) FINISH
+# 10) FINISH
 # ==============================================================================
 
 message(
-  "\n🎉 STEP 1 COMPLETE"
+  "\n",
+  "===============================================================================\n",
+  "🎉 STEP 1 COMPLETE\n",
+  "==============================================================================="
 )
 
 
